@@ -1,0 +1,300 @@
+openapi: 3.0.3
+info:
+  title: BeeBase Statistics Service API
+  description: >
+    Dashboard/statistics aggregation service for BeeBase, an open-source
+    backend for a beekeeper management application split into
+    microservices. Access tokens are issued by auth-service (see its
+    OpenAPI spec); this service verifies them against auth-service's
+    public key and never trusts a userID from anywhere but a verified
+    token.
+
+    This service holds no data of its own. Every endpoint fetches the
+    caller's apiaries, hives, and inspections from apiary-service,
+    hive-service, and inspection-service (forwarding the caller's own
+    access token to each) and computes statistics fresh from that
+    snapshot - there is no cache and nothing here is ever stale or mocked.
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: system
+    description: Liveness and readiness probes.
+  - name: statistics
+    description: Dashboard statistics computed from a user's own apiaries, hives, and inspections.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: The process is up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusResponse" }
+
+  /ready:
+    get:
+      tags: [system]
+      summary: Readiness probe
+      description: >
+        This service has no database or other local dependency of its
+        own to probe, so it's identical to /health.
+      security: []
+      responses:
+        "200":
+          description: The process is ready to serve traffic.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusResponse" }
+
+  /api/v1/statistics/overview:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's top-level summary
+      description: >
+        Fetches the caller's entire apiary, hive, and inspection
+        collections and computes every headline number in one pass.
+      responses:
+        "200":
+          description: The caller's overview statistics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OverviewResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (apiary/hive/inspection-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/statistics/apiaries:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's apiary-focused section
+      description: >
+        Does not fetch the caller's inspections - only apiaries and hives
+        are needed for this section.
+      responses:
+        "200":
+          description: The caller's apiary statistics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiaryStatsResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (apiary/hive-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/statistics/inspections:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's inspection-focused section
+      responses:
+        "200":
+          description: The caller's inspection statistics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InspectionStatsResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (apiary/hive/inspection-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/statistics/activity:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's Recent Activity feed
+      description: The caller's most recent inspections, newest first.
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of items to return.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        "200":
+          description: The caller's most recent inspections.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityResponse" }
+        "400":
+          description: limit is invalid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationErrorResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (apiary/hive/inspection-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: An access token issued by auth-service's /api/v1/auth/login (or /register or /refresh).
+
+  schemas:
+    StatusResponse:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+
+    OverviewResponse:
+      type: object
+      properties:
+        total_apiaries: { type: integer }
+        total_hives: { type: integer }
+        total_inspections: { type: integer }
+        inspections_last_7_days: { type: integer }
+        inspections_this_month: { type: integer }
+        inspections_this_year: { type: integer }
+        apiaries_without_hives: { type: integer }
+        hives_without_inspections: { type: integer }
+        avg_hives_per_apiary: { type: number, format: double }
+        avg_inspections_per_hive: { type: number, format: double }
+        latest_inspection_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null when the caller has no inspections yet.
+
+    ApiaryHiveCount:
+      type: object
+      properties:
+        apiary_id: { type: string, format: uuid }
+        name: { type: string }
+        hive_count: { type: integer }
+
+    ApiaryStatsResponse:
+      type: object
+      properties:
+        total_apiaries: { type: integer }
+        apiaries_without_hives: { type: integer }
+        apiary_with_most_hives:
+          allOf: [{ $ref: "#/components/schemas/ApiaryHiveCount" }]
+          nullable: true
+          description: Null when the caller has no hives at all.
+        hive_distribution:
+          type: array
+          items: { $ref: "#/components/schemas/ApiaryHiveCount" }
+          description: Covers every apiary, sorted by hive count descending - ready to render as a chart.
+
+    HiveInspectionCount:
+      type: object
+      properties:
+        hive_id: { type: string, format: uuid }
+        hive_name: { type: string }
+        apiary_id: { type: string, format: uuid }
+        apiary_name: { type: string }
+        inspection_count: { type: integer }
+
+    DayCount:
+      type: object
+      properties:
+        date: { type: string, example: "2026-03-15" }
+        count: { type: integer }
+
+    InspectionStatsResponse:
+      type: object
+      properties:
+        total_inspections: { type: integer }
+        inspections_last_7_days: { type: integer }
+        inspections_this_month: { type: integer }
+        inspections_this_year: { type: integer }
+        hive_with_most_inspections:
+          allOf: [{ $ref: "#/components/schemas/HiveInspectionCount" }]
+          nullable: true
+          description: Null when the caller has no inspections yet.
+        latest_inspection_at:
+          type: string
+          format: date-time
+          nullable: true
+        activity_last_30_days:
+          type: array
+          items: { $ref: "#/components/schemas/DayCount" }
+          description: Always exactly 30 entries, oldest to newest ending today (UTC), zero-filled for days with no inspections.
+
+    ActivityItem:
+      type: object
+      properties:
+        inspection_id: { type: string, format: uuid }
+        inspected_at: { type: string, format: date-time }
+        hive_id: { type: string, format: uuid }
+        hive_name: { type: string }
+        apiary_id: { type: string, format: uuid }
+        apiary_name: { type: string }
+        notes: { type: string }
+
+    ActivityResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityItem" }
+
+    ErrorResponse:
+      type: object
+      description: >
+        "code" is the stable, machine-readable key: build any localized
+        message off of it, not off "message" (an English fallback for logs
+        and manual debugging, not meant to be shown to end users).
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - missing_authorization
+                - invalid_access_token
+                - validation_error
+                - internal_error
+              example: internal_error
+            message: { type: string, example: something went wrong }
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, enum: [validation_error] }
+            message: { type: string, example: request validation failed }
+            fields:
+              type: object
+              description: Field name to error code.
+              additionalProperties:
+                type: string
+                enum:
+                  - invalid_limit

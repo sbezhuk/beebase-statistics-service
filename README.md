@@ -36,7 +36,7 @@ Verify it's up:
 curl http://localhost:8080/health   # liveness — always 200 while the process is up
 curl http://localhost:8080/ready    # readiness — this service has no dependency of its own to probe, so it's the same check as /health
 
-TOKEN=... # an access_token from auth-service's /api/v1/auth/register or /login
+TOKEN=...  # an access_token from auth-service's /api/v1/auth/register or /login
 
 curl http://localhost:8080/api/v1/statistics/overview    -H "Authorization: Bearer $TOKEN"
 curl http://localhost:8080/api/v1/statistics/apiaries    -H "Authorization: Bearer $TOKEN"

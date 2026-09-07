@@ -20,6 +20,13 @@ type Config struct {
 
 	LogLevel string // "debug", "info", "warn", "error"
 
+	// RedisAddr is the shared session store every BeeBase service checks on
+	// every request, so an access token can be rejected the instant its
+	// session is superseded by a newer one instead of staying valid until
+	// its own JWT expiry.
+	RedisAddr           string
+	RedisConnectTimeout time.Duration
+
 	// AuthJWKSURL points at auth-service's public key endpoint
 	// (GET /.well-known/jwks.json), used to verify access tokens without
 	// ever holding a key that could mint one.
@@ -47,6 +54,9 @@ func Load() (*Config, error) {
 
 		LogLevel: getEnv("LOG_LEVEL", "info"),
 
+		RedisAddr:           getEnv("REDIS_ADDR", ""),
+		RedisConnectTimeout: getDuration("REDIS_CONNECT_TIMEOUT", 5*time.Second),
+
 		AuthJWKSURL: getEnv("AUTH_JWKS_URL", ""),
 
 		ApiaryServiceURL:     getEnv("APIARY_SERVICE_URL", ""),
@@ -55,6 +65,7 @@ func Load() (*Config, error) {
 	}
 
 	required := []struct{ name, value string }{
+		{"REDIS_ADDR", cfg.RedisAddr},
 		{"AUTH_JWKS_URL", cfg.AuthJWKSURL},
 		{"APIARY_SERVICE_URL", cfg.ApiaryServiceURL},
 		{"HIVE_SERVICE_URL", cfg.HiveServiceURL},

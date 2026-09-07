@@ -14,7 +14,7 @@ info:
     hive-service, and inspection-service (forwarding the caller's own
     access token to each) and computes statistics fresh from that
     snapshot - there is no cache and nothing here is ever stale or mocked.
-  version: 0.1.0
+  version: 0.6.0
 servers:
   - url: http://localhost:8080
 

@@ -33,8 +33,8 @@ make run
 Verify it's up:
 
 ```bash
-curl http://localhost:8080/health   # liveness — always 200 while the process is up
-curl http://localhost:8080/ready    # readiness — this service has no dependency of its own to probe, so it's the same check as /health
+curl http://localhost:8080/health    # liveness — always 200 while the process is up
+curl http://localhost:8080/ready     # readiness — this service has no dependency of its own to probe, so it's the same check as /health
 
 TOKEN=...  # an access_token from auth-service's /api/v1/auth/register or /login
 

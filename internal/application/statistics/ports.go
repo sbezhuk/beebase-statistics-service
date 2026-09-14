@@ -47,14 +47,8 @@ type InspectionLister interface {
 }
 
 // HarvestLister is this service's dependency on harvest-service.
-// Unlike the other listers, harvest-service exposes no endpoint that
-// lists every harvest a caller owns in one call - only GET
-// /hives/{hiveID}/harvest, scoped to a single hive - so ListAllForHives
-// takes the caller's hive IDs (already fetched via HiveLister) and fans
-// out across them.
+// Harvest-service scopes its global list by the caller's authenticated
+// identity and pages through all owned harvests in one resource API.
 type HarvestLister interface {
-	// ListAllForHives returns every harvest record across hiveIDs,
-	// forwarding accessToken so harvest-service can verify each hive
-	// belongs to whoever presented it.
-	ListAllForHives(ctx context.Context, accessToken string, hiveIDs []uuid.UUID) ([]domainstats.Harvest, error)
+	ListAll(ctx context.Context, accessToken string) ([]domainstats.Harvest, error)
 }

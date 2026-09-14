@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-
 	domainstats "github.com/sbezhuk/beebase-statistics-service/internal/domain/statistics"
 )
 
@@ -81,21 +79,11 @@ func (s *Service) RecentActivity(ctx context.Context, accessToken string, limit 
 	return domainstats.ComputeRecentActivity(apiaries, hives, inspections, limit), nil
 }
 
-// HarvestStats returns the Dashboard's harvest-focused section. It only
-// needs hives (to know which hives to ask harvest-service for), so it
-// skips fetching apiaries and inspections entirely.
+// HarvestStats returns the Dashboard's harvest-focused section by using
+// harvest-service's user-scoped global list. It deliberately does not
+// fetch hives or fan out one request per hive.
 func (s *Service) HarvestStats(ctx context.Context, accessToken string) (domainstats.HarvestStats, error) {
-	hives, err := s.hives.ListAll(ctx, accessToken)
-	if err != nil {
-		return domainstats.HarvestStats{}, fmt.Errorf("statistics: list hives: %w", err)
-	}
-
-	hiveIDs := make([]uuid.UUID, len(hives))
-	for i, h := range hives {
-		hiveIDs[i] = h.ID
-	}
-
-	harvests, err := s.harvests.ListAllForHives(ctx, accessToken, hiveIDs)
+	harvests, err := s.harvests.ListAll(ctx, accessToken)
 	if err != nil {
 		return domainstats.HarvestStats{}, fmt.Errorf("statistics: list harvests: %w", err)
 	}

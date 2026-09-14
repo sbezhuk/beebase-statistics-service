@@ -103,6 +103,28 @@ func (s *Service) HarvestStats(ctx context.Context, accessToken string) (domains
 	return domainstats.ComputeHarvestStats(harvests), nil
 }
 
+// NeedsAttention returns the Dashboard's actionable "Needs Attention"
+// section. It only needs apiaries and hives (this service's own data)
+// plus inspection-service's hive-status (latest InspectedAt per hive
+// and the configured threshold) - never the caller's full inspection
+// history, unlike Overview/InspectionStats.
+func (s *Service) NeedsAttention(ctx context.Context, accessToken string) (domainstats.NeedsAttention, error) {
+	apiaries, err := s.apiaries.ListAll(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: list apiaries: %w", err)
+	}
+	hives, err := s.hives.ListAll(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: list hives: %w", err)
+	}
+	latestByHive, thresholdDays, err := s.inspections.HiveInspectionStatus(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: get hive inspection status: %w", err)
+	}
+
+	return domainstats.ComputeNeedsAttention(apiaries, hives, latestByHive, thresholdDays, time.Now().UTC()), nil
+}
+
 // fetchAll fetches every apiary, hive, and inspection belonging to
 // whoever presented accessToken. Apiaries and hives are typically few
 // for a single beekeeper; inspections can be large for a long-running

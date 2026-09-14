@@ -51,6 +51,12 @@ type fakeInspectionLister struct {
 	// lastLimit records the limit ListRecent was last called with, so a
 	// test can assert it was forwarded correctly.
 	lastLimit int
+
+	// statusByToken/thresholdDays/statusErr back HiveInspectionStatus,
+	// independently of the other fields above.
+	statusByToken map[string]map[uuid.UUID]time.Time
+	thresholdDays int
+	statusErr     error
 }
 
 func (f *fakeInspectionLister) ListAll(_ context.Context, accessToken string) ([]domainstats.Inspection, error) {
@@ -72,6 +78,16 @@ func (f *fakeInspectionLister) ListRecent(_ context.Context, accessToken string,
 		items = items[:limit]
 	}
 	return items, nil
+}
+
+// HiveInspectionStatus mimics inspectionclient.Client.HiveInspectionStatus's
+// contract: the latest InspectedAt per hive (only for hives with at
+// least one), plus the configured threshold.
+func (f *fakeInspectionLister) HiveInspectionStatus(_ context.Context, accessToken string) (map[uuid.UUID]time.Time, int, error) {
+	if f.statusErr != nil {
+		return nil, 0, f.statusErr
+	}
+	return f.statusByToken[accessToken], f.thresholdDays, nil
 }
 
 type fakeHarvestLister struct {
@@ -321,5 +337,80 @@ func TestHarvestStats_UpstreamErrorPropagates(t *testing.T) {
 
 	if _, err := svc.HarvestStats(context.Background(), token); err == nil {
 		t.Fatal("HarvestStats: got nil error, want upstream failure to propagate")
+	}
+}
+
+func TestNeedsAttention_ForwardsTokenAndComputesFromFetchedData(t *testing.T) {
+	token := "user-token"
+	apiaryEmpty := domainstats.Apiary{ID: uuid.New(), Name: "Empty"}
+	apiaryWithHive := domainstats.Apiary{ID: uuid.New(), Name: "Has a hive"}
+	hive := domainstats.Hive{ID: uuid.New(), ApiaryID: apiaryWithHive.ID, Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{byToken: map[string][]domainstats.Apiary{token: {apiaryEmpty, apiaryWithHive}}},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{
+			statusByToken: map[string]map[uuid.UUID]time.Time{token: {}}, // never inspected
+			thresholdDays: 14,
+		},
+		&fakeHarvestLister{},
+	)
+
+	na, err := svc.NeedsAttention(context.Background(), token)
+	if err != nil {
+		t.Fatalf("NeedsAttention: %v", err)
+	}
+	if na.ApiariesWithoutHives != 1 {
+		t.Errorf("ApiariesWithoutHives = %d, want 1", na.ApiariesWithoutHives)
+	}
+	if na.HivesNeedingInspection != 1 {
+		t.Errorf("HivesNeedingInspection = %d, want 1 (never inspected)", na.HivesNeedingInspection)
+	}
+	if na.InspectionWarningThresholdDays != 14 {
+		t.Errorf("InspectionWarningThresholdDays = %d, want 14", na.InspectionWarningThresholdDays)
+	}
+}
+
+func TestNeedsAttention_DoesNotFetchEntireInspectionHistory(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{
+			// If NeedsAttention ever calls ListAll/ListRecent instead of
+			// HiveInspectionStatus, this makes the test fail loudly
+			// instead of silently returning the full history.
+			err:           errors.New("NeedsAttention must not fetch the full inspection history"),
+			recentErr:     errors.New("NeedsAttention must not call ListRecent"),
+			statusByToken: map[string]map[uuid.UUID]time.Time{token: {hive.ID: time.Now().UTC()}},
+			thresholdDays: 14,
+		},
+		&fakeHarvestLister{},
+	)
+
+	na, err := svc.NeedsAttention(context.Background(), token)
+	if err != nil {
+		t.Fatalf("NeedsAttention: %v", err)
+	}
+	if na.HivesNeedingInspection != 0 {
+		t.Errorf("HivesNeedingInspection = %d, want 0 (recently inspected)", na.HivesNeedingInspection)
+	}
+}
+
+func TestNeedsAttention_UpstreamErrorPropagates(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{statusErr: errors.New("inspection-service unreachable")},
+		&fakeHarvestLister{},
+	)
+
+	if _, err := svc.NeedsAttention(context.Background(), token); err == nil {
+		t.Fatal("NeedsAttention: got nil error, want upstream failure to propagate")
 	}
 }

@@ -6,6 +6,7 @@ package statistics
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -35,6 +36,14 @@ type InspectionLister interface {
 	// most recent inspections, newest first by InspectedAt, without
 	// paging through their entire inspection history to get there.
 	ListRecent(ctx context.Context, accessToken string, limit int) ([]domainstats.Inspection, error)
+	// HiveInspectionStatus returns the latest InspectedAt for every hive
+	// whoever presented accessToken has ever inspected (a hive absent
+	// from the map has never been inspected), and the currently
+	// configured inspection warning threshold in days - the same single
+	// source of truth hive-service's own needs_inspection filter reads,
+	// so the Dashboard's NeedsAttention count and hive-service's filter
+	// never disagree.
+	HiveInspectionStatus(ctx context.Context, accessToken string) (latestByHive map[uuid.UUID]time.Time, thresholdDays int, err error)
 }
 
 // HarvestLister is this service's dependency on harvest-service.

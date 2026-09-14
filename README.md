@@ -40,11 +40,12 @@ curl http://localhost:8080/ready     # readiness — this service has no depende
 
 TOKEN=...  # an access_token from auth-service's /api/v1/auth/register or /login
 
-curl http://localhost:8080/api/v1/statistics/overview    -H "Authorization: Bearer $TOKEN"
-curl http://localhost:8080/api/v1/statistics/apiaries    -H "Authorization: Bearer $TOKEN"
-curl http://localhost:8080/api/v1/statistics/inspections -H "Authorization: Bearer $TOKEN"
-curl http://localhost:8080/api/v1/statistics/activity    -H "Authorization: Bearer $TOKEN"
-curl http://localhost:8080/api/v1/statistics/harvest     -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/overview        -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/apiaries        -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/inspections     -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/activity        -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/harvest         -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8080/api/v1/statistics/needs-attention -H "Authorization: Bearer $TOKEN"
 ```
 
 The full API surface is documented in [api/openapi.yaml](api/openapi.yaml).
@@ -87,7 +88,7 @@ cmd/server/                       entry point: wires config, logger, clients, se
 api/openapi.yaml                    API contract
 internal/
   domain/statistics/                 pure calculation functions; no context, no I/O
-  application/statistics/             use cases: Overview, ApiaryStats, InspectionStats, RecentActivity, HarvestStats
+  application/statistics/             use cases: Overview, ApiaryStats, InspectionStats, RecentActivity, HarvestStats, NeedsAttention
   platform/
     apiaryclient/                       ApiaryLister implemented against apiary-service
     hiveclient/                         HiveLister implemented against hive-service
@@ -104,13 +105,13 @@ shared by every BeeBase service.
 
 ## Endpoints
 
-Five endpoints, one per Dashboard section, so each can be loaded and
+Six endpoints, one per Dashboard section, so each can be loaded and
 retried independently by a client without a bespoke partial-response
 envelope:
 
 - `GET /api/v1/statistics/overview` — total apiaries/hives/inspections,
   inspections in the last 7 days/this month/this year, apiaries without
-  hives, hives without inspections, latest inspection date.
+  hives, latest inspection date.
 - `GET /api/v1/statistics/apiaries` — per-apiary hive counts (ready to
   render as a distribution chart), the apiary with the most hives.
 - `GET /api/v1/statistics/inspections` — inspection counts and windows,
@@ -121,6 +122,15 @@ envelope:
   harvested amount per unit, the latest harvest date, and its product.
   A caller with no harvest records yet gets a valid "200" with all-zero/
   null fields, not an error.
+- `GET /api/v1/statistics/needs-attention` — actionable counts:
+  apiaries without hives, hives needing inspection (never inspected, or
+  last inspected longer ago than the configured warning threshold), and
+  the threshold itself, in days - the client reads it from here rather
+  than hardcoding it. Backed by inspection-service's `GET
+  /api/v1/inspections/hive-status` (see beebase-common/
+  inspectionwarning), the same single source of truth hive-service's own
+  `?needs_inspection=true` filter reads, so the two are always
+  consistent.
 
 ## Known tradeoff
 

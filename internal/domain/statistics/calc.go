@@ -5,19 +5,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/sbezhuk/beebase-common/inspectionwarning"
 )
 
 // Overview is the Dashboard's top-level summary, combining apiary, hive,
 // and inspection data.
 type Overview struct {
-	TotalApiaries           int
-	TotalHives              int
-	TotalInspections        int
-	InspectionsLast7Days    int
-	InspectionsThisMonth    int
-	InspectionsThisYear     int
-	ApiariesWithoutHives    int
-	HivesWithoutInspections int
+	TotalApiaries        int
+	TotalHives           int
+	TotalInspections     int
+	InspectionsLast7Days int
+	InspectionsThisMonth int
+	InspectionsThisYear  int
+	ApiariesWithoutHives int
 	// LatestInspectionAt is nil when the caller has no inspections yet.
 	LatestInspectionAt *time.Time
 }
@@ -26,34 +27,17 @@ type Overview struct {
 // as they stood at now. now is a parameter (rather than time.Now()
 // inside) so callers can test day/month/year boundaries deterministically.
 func ComputeOverview(apiaries []Apiary, hives []Hive, inspections []Inspection, now time.Time) Overview {
-	hivesByApiary := countHivesByApiary(hives)
-	apiariesWithoutHives := 0
-	for _, a := range apiaries {
-		if hivesByApiary[a.ID] == 0 {
-			apiariesWithoutHives++
-		}
-	}
-
-	inspectionsByHive := countInspectionsByHive(inspections)
-	hivesWithoutInspections := 0
-	for _, h := range hives {
-		if inspectionsByHive[h.ID] == 0 {
-			hivesWithoutInspections++
-		}
-	}
-
 	last7, thisMonth, thisYear, latest := inspectionWindowCounts(inspections, now)
 
 	return Overview{
-		TotalApiaries:           len(apiaries),
-		TotalHives:              len(hives),
-		TotalInspections:        len(inspections),
-		InspectionsLast7Days:    last7,
-		InspectionsThisMonth:    thisMonth,
-		InspectionsThisYear:     thisYear,
-		ApiariesWithoutHives:    apiariesWithoutHives,
-		HivesWithoutInspections: hivesWithoutInspections,
-		LatestInspectionAt:      latest,
+		TotalApiaries:        len(apiaries),
+		TotalHives:           len(hives),
+		TotalInspections:     len(inspections),
+		InspectionsLast7Days: last7,
+		InspectionsThisMonth: thisMonth,
+		InspectionsThisYear:  thisYear,
+		ApiariesWithoutHives: apiariesWithoutHivesCount(apiaries, hives),
+		LatestInspectionAt:   latest,
 	}
 }
 
@@ -83,13 +67,8 @@ func ComputeApiaryStats(apiaries []Apiary, hives []Hive) ApiaryStats {
 	hivesByApiary := countHivesByApiary(hives)
 
 	dist := make([]ApiaryHiveCount, 0, len(apiaries))
-	withoutHives := 0
 	for _, a := range apiaries {
-		count := hivesByApiary[a.ID]
-		if count == 0 {
-			withoutHives++
-		}
-		dist = append(dist, ApiaryHiveCount{ApiaryID: a.ID, Name: a.Name, HiveCount: count})
+		dist = append(dist, ApiaryHiveCount{ApiaryID: a.ID, Name: a.Name, HiveCount: hivesByApiary[a.ID]})
 	}
 	sortByCountThenID(dist)
 
@@ -101,7 +80,7 @@ func ComputeApiaryStats(apiaries []Apiary, hives []Hive) ApiaryStats {
 
 	return ApiaryStats{
 		TotalApiaries:        len(apiaries),
-		ApiariesWithoutHives: withoutHives,
+		ApiariesWithoutHives: apiariesWithoutHivesCount(apiaries, hives),
 		ApiaryWithMostHives:  most,
 		HiveDistribution:     dist,
 	}
@@ -271,6 +250,45 @@ func ComputeHarvestStats(harvests []Harvest) HarvestStats {
 	}
 }
 
+// NeedsAttention is the Dashboard's actionable "Needs Attention"
+// section: counts of apiaries and hives that currently need the
+// caller's attention, plus the threshold behind the hive count, so the
+// client never has to know or duplicate that business rule itself.
+type NeedsAttention struct {
+	ApiariesWithoutHives int
+	// HivesNeedingInspection counts hives that have never been
+	// inspected, or whose latest inspection is older than
+	// InspectionWarningThresholdDays (see beebase-common/
+	// inspectionwarning) - the same rule, and the same threshold, that
+	// GET /api/v1/hives?needs_inspection=true on hive-service applies.
+	HivesNeedingInspection         int
+	InspectionWarningThresholdDays int
+}
+
+// ComputeNeedsAttention builds NeedsAttention from apiaries and hives as
+// they stood at the time both were fetched, latestInspectionByHive (the
+// latest InspectedAt per hive id, from inspection-service's hive-status
+// - a hive absent from the map has never been inspected), the currently
+// configured threshold, and now.
+func ComputeNeedsAttention(apiaries []Apiary, hives []Hive, latestInspectionByHive map[uuid.UUID]time.Time, thresholdDays int, now time.Time) NeedsAttention {
+	needing := 0
+	for _, h := range hives {
+		var latest *time.Time
+		if t, ok := latestInspectionByHive[h.ID]; ok {
+			latest = &t
+		}
+		if inspectionwarning.NeedsInspection(latest, thresholdDays, now) {
+			needing++
+		}
+	}
+
+	return NeedsAttention{
+		ApiariesWithoutHives:           apiariesWithoutHivesCount(apiaries, hives),
+		HivesNeedingInspection:         needing,
+		InspectionWarningThresholdDays: thresholdDays,
+	}
+}
+
 // latestHarvest returns the harvest with the most recent HarvestedAt,
 // ties broken by ID for determinism. Callers must ensure harvests is
 // non-empty.
@@ -284,6 +302,22 @@ func latestHarvest(harvests []Harvest) Harvest {
 		}
 	}
 	return best
+}
+
+// apiariesWithoutHivesCount returns the number of apiaries with zero
+// hives - no grace period based on the apiary's age, an apiary qualifies
+// the instant its last hive is gone. Shared by ComputeOverview,
+// ComputeApiaryStats, and ComputeNeedsAttention so the three never
+// disagree.
+func apiariesWithoutHivesCount(apiaries []Apiary, hives []Hive) int {
+	hivesByApiary := countHivesByApiary(hives)
+	count := 0
+	for _, a := range apiaries {
+		if hivesByApiary[a.ID] == 0 {
+			count++
+		}
+	}
+	return count
 }
 
 func countHivesByApiary(hives []Hive) map[uuid.UUID]int {

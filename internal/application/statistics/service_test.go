@@ -50,6 +50,18 @@ func (f *fakeInspectionLister) ListAll(_ context.Context, accessToken string) ([
 	return f.byToken[accessToken], nil
 }
 
+type fakeHarvestLister struct {
+	byToken map[string][]domainstats.Harvest
+	err     error
+}
+
+func (f *fakeHarvestLister) ListAllForHives(_ context.Context, accessToken string, _ []uuid.UUID) ([]domainstats.Harvest, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.byToken[accessToken], nil
+}
+
 // --- tests ---
 
 func TestOverview_ForwardsTokenAndComputesFromFetchedData(t *testing.T) {
@@ -62,6 +74,7 @@ func TestOverview_ForwardsTokenAndComputesFromFetchedData(t *testing.T) {
 		&fakeApiaryLister{byToken: map[string][]domainstats.Apiary{token: {apiary}}},
 		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
 		&fakeInspectionLister{byToken: map[string][]domainstats.Inspection{token: {insp}}},
+		&fakeHarvestLister{},
 	)
 
 	overview, err := svc.Overview(context.Background(), token)
@@ -79,6 +92,7 @@ func TestOverview_UpstreamErrorPropagates(t *testing.T) {
 		&fakeApiaryLister{err: upstreamErr},
 		&fakeHiveLister{},
 		&fakeInspectionLister{},
+		&fakeHarvestLister{},
 	)
 
 	_, err := svc.Overview(context.Background(), "some-token")
@@ -97,6 +111,7 @@ func TestApiaryStats_DoesNotFetchInspections(t *testing.T) {
 		// If ApiaryStats ever calls InspectionLister.ListAll, this makes
 		// the test fail loudly instead of silently returning nothing.
 		&fakeInspectionLister{err: errors.New("ApiaryStats must not fetch inspections")},
+		&fakeHarvestLister{err: errors.New("ApiaryStats must not fetch harvests")},
 	)
 
 	stats, err := svc.ApiaryStats(context.Background(), token)
@@ -123,6 +138,7 @@ func TestRecentActivity_ForwardsLimit(t *testing.T) {
 		&fakeApiaryLister{byToken: map[string][]domainstats.Apiary{token: {apiary}}},
 		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
 		&fakeInspectionLister{byToken: map[string][]domainstats.Inspection{token: inspections}},
+		&fakeHarvestLister{},
 	)
 
 	items, err := svc.RecentActivity(context.Background(), token, 2)
@@ -131,5 +147,60 @@ func TestRecentActivity_ForwardsLimit(t *testing.T) {
 	}
 	if len(items) != 2 {
 		t.Fatalf("len(items) = %d, want 2", len(items))
+	}
+}
+
+func TestHarvestStats_ForwardsTokenAndComputesFromFetchedData(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+	harvest := domainstats.Harvest{ID: uuid.New(), Product: "HONEY", Amount: 2, Unit: "kg", HarvestedAt: time.Now().UTC()}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{},
+		&fakeHarvestLister{byToken: map[string][]domainstats.Harvest{token: {harvest}}},
+	)
+
+	stats, err := svc.HarvestStats(context.Background(), token)
+	if err != nil {
+		t.Fatalf("HarvestStats: %v", err)
+	}
+	if stats.TotalHarvests != 1 {
+		t.Errorf("TotalHarvests = %d, want 1", stats.TotalHarvests)
+	}
+}
+
+func TestHarvestStats_DoesNotFetchApiariesOrInspections(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		// If HarvestStats ever calls ApiaryLister.ListAll, this makes the
+		// test fail loudly instead of silently returning nothing.
+		&fakeApiaryLister{err: errors.New("HarvestStats must not fetch apiaries")},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{err: errors.New("HarvestStats must not fetch inspections")},
+		&fakeHarvestLister{},
+	)
+
+	if _, err := svc.HarvestStats(context.Background(), token); err != nil {
+		t.Fatalf("HarvestStats: %v", err)
+	}
+}
+
+func TestHarvestStats_UpstreamErrorPropagates(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{},
+		&fakeHarvestLister{err: errors.New("harvest-service unreachable")},
+	)
+
+	if _, err := svc.HarvestStats(context.Background(), token); err == nil {
+		t.Fatal("HarvestStats: got nil error, want upstream failure to propagate")
 	}
 }

@@ -42,6 +42,7 @@ func NewRouter(
 			r.Get("/apiaries", statisticsHandler.Apiaries)
 			r.Get("/inspections", statisticsHandler.Inspections)
 			r.Get("/activity", statisticsHandler.Activity)
+			r.Get("/harvest", statisticsHandler.Harvest)
 		})
 	})
 

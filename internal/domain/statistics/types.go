@@ -32,3 +32,16 @@ type Inspection struct {
 	InspectedAt time.Time
 	Notes       string
 }
+
+// Harvest is the subset of harvest-service's Harvest this service needs.
+// Product and Unit are carried as plain strings rather than
+// harvest-service's own enum types, matching how every other type in this
+// file only depends on the shape of the upstream data, never on the
+// service that owns it.
+type Harvest struct {
+	ID          uuid.UUID
+	Product     string
+	Amount      float64
+	Unit        string
+	HarvestedAt time.Time
+}

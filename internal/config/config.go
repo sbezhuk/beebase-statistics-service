@@ -32,12 +32,14 @@ type Config struct {
 	// ever holding a key that could mint one.
 	AuthJWKSURL string
 
-	// ApiaryServiceURL, HiveServiceURL, and InspectionServiceURL are the
-	// base URLs this service fetches a caller's apiaries, hives, and
-	// inspections from - it holds no data of its own.
+	// ApiaryServiceURL, HiveServiceURL, InspectionServiceURL, and
+	// HarvestServiceURL are the base URLs this service fetches a
+	// caller's apiaries, hives, inspections, and harvest records from -
+	// it holds no data of its own.
 	ApiaryServiceURL     string
 	HiveServiceURL       string
 	InspectionServiceURL string
+	HarvestServiceURL    string
 }
 
 // Load builds a Config from environment variables, falling back to
@@ -62,6 +64,7 @@ func Load() (*Config, error) {
 		ApiaryServiceURL:     getEnv("APIARY_SERVICE_URL", ""),
 		HiveServiceURL:       getEnv("HIVE_SERVICE_URL", ""),
 		InspectionServiceURL: getEnv("INSPECTION_SERVICE_URL", ""),
+		HarvestServiceURL:    getEnv("HARVEST_SERVICE_URL", ""),
 	}
 
 	required := []struct{ name, value string }{
@@ -70,6 +73,7 @@ func Load() (*Config, error) {
 		{"APIARY_SERVICE_URL", cfg.ApiaryServiceURL},
 		{"HIVE_SERVICE_URL", cfg.HiveServiceURL},
 		{"INSPECTION_SERVICE_URL", cfg.InspectionServiceURL},
+		{"HARVEST_SERVICE_URL", cfg.HarvestServiceURL},
 	}
 	for _, r := range required {
 		if r.value == "" {

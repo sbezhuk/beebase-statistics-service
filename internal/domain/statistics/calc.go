@@ -18,8 +18,6 @@ type Overview struct {
 	InspectionsThisYear     int
 	ApiariesWithoutHives    int
 	HivesWithoutInspections int
-	AvgHivesPerApiary       float64
-	AvgInspectionsPerHive   float64
 	// LatestInspectionAt is nil when the caller has no inspections yet.
 	LatestInspectionAt *time.Time
 }
@@ -46,15 +44,6 @@ func ComputeOverview(apiaries []Apiary, hives []Hive, inspections []Inspection, 
 
 	last7, thisMonth, thisYear, latest := inspectionWindowCounts(inspections, now)
 
-	var avgHivesPerApiary float64
-	if len(apiaries) > 0 {
-		avgHivesPerApiary = float64(len(hives)) / float64(len(apiaries))
-	}
-	var avgInspectionsPerHive float64
-	if len(hives) > 0 {
-		avgInspectionsPerHive = float64(len(inspections)) / float64(len(hives))
-	}
-
 	return Overview{
 		TotalApiaries:           len(apiaries),
 		TotalHives:              len(hives),
@@ -64,8 +53,6 @@ func ComputeOverview(apiaries []Apiary, hives []Hive, inspections []Inspection, 
 		InspectionsThisYear:     thisYear,
 		ApiariesWithoutHives:    apiariesWithoutHives,
 		HivesWithoutInspections: hivesWithoutInspections,
-		AvgHivesPerApiary:       avgHivesPerApiary,
-		AvgInspectionsPerHive:   avgInspectionsPerHive,
 		LatestInspectionAt:      latest,
 	}
 }
@@ -220,6 +207,83 @@ func ComputeRecentActivity(apiaries []Apiary, hives []Hive, inspections []Inspec
 		}
 	}
 	return items
+}
+
+// HarvestAmountByUnit is the total harvested amount recorded in one unit,
+// as reported in HarvestStats.TotalAmountByUnit. Amounts are only ever
+// summed within the same unit: harvest-service allows different products
+// (and even the same product) to be recorded in different units, so a
+// single combined "total amount" across units would be meaningless.
+type HarvestAmountByUnit struct {
+	Unit  string
+	Total float64
+}
+
+// HarvestStats is the Dashboard's harvest-focused section.
+type HarvestStats struct {
+	TotalHarvests int
+	// TotalAmountByUnit covers every unit present in the caller's harvest
+	// records, sorted by Unit for determinism. Empty when TotalHarvests
+	// is 0.
+	TotalAmountByUnit []HarvestAmountByUnit
+	// LatestHarvestedAt is nil when the caller has no harvest records yet
+	// - a valid, non-error result, not a zero value standing in for one.
+	LatestHarvestedAt *time.Time
+	// LatestProduct is the product of the most recent harvest record (by
+	// HarvestedAt, ties broken by ID for determinism), nil when the
+	// caller has no harvest records yet.
+	LatestProduct *string
+}
+
+// ComputeHarvestStats builds HarvestStats from every harvest record the
+// caller owns, across all of their hives. An empty/nil harvests is a
+// valid input - not an error - and yields a zero-valued HarvestStats.
+func ComputeHarvestStats(harvests []Harvest) HarvestStats {
+	if len(harvests) == 0 {
+		return HarvestStats{}
+	}
+
+	totals := make(map[string]float64, len(harvests))
+	for _, h := range harvests {
+		totals[h.Unit] += h.Amount
+	}
+
+	units := make([]string, 0, len(totals))
+	for u := range totals {
+		units = append(units, u)
+	}
+	sort.Strings(units)
+
+	byUnit := make([]HarvestAmountByUnit, len(units))
+	for i, u := range units {
+		byUnit[i] = HarvestAmountByUnit{Unit: u, Total: totals[u]}
+	}
+
+	latest := latestHarvest(harvests)
+	latestAt := latest.HarvestedAt
+	latestProduct := latest.Product
+
+	return HarvestStats{
+		TotalHarvests:     len(harvests),
+		TotalAmountByUnit: byUnit,
+		LatestHarvestedAt: &latestAt,
+		LatestProduct:     &latestProduct,
+	}
+}
+
+// latestHarvest returns the harvest with the most recent HarvestedAt,
+// ties broken by ID for determinism. Callers must ensure harvests is
+// non-empty.
+func latestHarvest(harvests []Harvest) Harvest {
+	best := harvests[0]
+	for _, h := range harvests[1:] {
+		if h.HarvestedAt.After(best.HarvestedAt) {
+			best = h
+		} else if h.HarvestedAt.Equal(best.HarvestedAt) && h.ID.String() < best.ID.String() {
+			best = h
+		}
+	}
+	return best
 }
 
 func countHivesByApiary(hives []Hive) map[uuid.UUID]int {

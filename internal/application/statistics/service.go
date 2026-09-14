@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	domainstats "github.com/sbezhuk/beebase-statistics-service/internal/domain/statistics"
 )
 
@@ -17,11 +19,12 @@ type Service struct {
 	apiaries    ApiaryLister
 	hives       HiveLister
 	inspections InspectionLister
+	harvests    HarvestLister
 }
 
 // NewService constructs a Service.
-func NewService(apiaries ApiaryLister, hives HiveLister, inspections InspectionLister) *Service {
-	return &Service{apiaries: apiaries, hives: hives, inspections: inspections}
+func NewService(apiaries ApiaryLister, hives HiveLister, inspections InspectionLister, harvests HarvestLister) *Service {
+	return &Service{apiaries: apiaries, hives: hives, inspections: inspections, harvests: harvests}
 }
 
 // Overview returns the Dashboard's top-level summary.
@@ -57,13 +60,69 @@ func (s *Service) InspectionStats(ctx context.Context, accessToken string) (doma
 }
 
 // RecentActivity returns the caller's most recent inspections, newest
-// first, capped at limit.
+// first, capped at limit. Unlike Overview/InspectionStats, it fetches
+// only the inspections it needs (via InspectionLister.ListRecent)
+// instead of paging through the caller's entire inspection history -
+// apiaries and hives are still fetched in full, but those are typically
+// few for a single beekeeper (see fetchAll's doc comment).
 func (s *Service) RecentActivity(ctx context.Context, accessToken string, limit int) ([]domainstats.ActivityItem, error) {
-	apiaries, hives, inspections, err := s.fetchAll(ctx, accessToken)
+	apiaries, err := s.apiaries.ListAll(ctx, accessToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("statistics: list apiaries: %w", err)
+	}
+	hives, err := s.hives.ListAll(ctx, accessToken)
+	if err != nil {
+		return nil, fmt.Errorf("statistics: list hives: %w", err)
+	}
+	inspections, err := s.inspections.ListRecent(ctx, accessToken, limit)
+	if err != nil {
+		return nil, fmt.Errorf("statistics: list recent inspections: %w", err)
 	}
 	return domainstats.ComputeRecentActivity(apiaries, hives, inspections, limit), nil
+}
+
+// HarvestStats returns the Dashboard's harvest-focused section. It only
+// needs hives (to know which hives to ask harvest-service for), so it
+// skips fetching apiaries and inspections entirely.
+func (s *Service) HarvestStats(ctx context.Context, accessToken string) (domainstats.HarvestStats, error) {
+	hives, err := s.hives.ListAll(ctx, accessToken)
+	if err != nil {
+		return domainstats.HarvestStats{}, fmt.Errorf("statistics: list hives: %w", err)
+	}
+
+	hiveIDs := make([]uuid.UUID, len(hives))
+	for i, h := range hives {
+		hiveIDs[i] = h.ID
+	}
+
+	harvests, err := s.harvests.ListAllForHives(ctx, accessToken, hiveIDs)
+	if err != nil {
+		return domainstats.HarvestStats{}, fmt.Errorf("statistics: list harvests: %w", err)
+	}
+
+	return domainstats.ComputeHarvestStats(harvests), nil
+}
+
+// NeedsAttention returns the Dashboard's actionable "Needs Attention"
+// section. It only needs apiaries and hives (this service's own data)
+// plus inspection-service's hive-status (latest InspectedAt per hive
+// and the configured threshold) - never the caller's full inspection
+// history, unlike Overview/InspectionStats.
+func (s *Service) NeedsAttention(ctx context.Context, accessToken string) (domainstats.NeedsAttention, error) {
+	apiaries, err := s.apiaries.ListAll(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: list apiaries: %w", err)
+	}
+	hives, err := s.hives.ListAll(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: list hives: %w", err)
+	}
+	latestByHive, thresholdDays, err := s.inspections.HiveInspectionStatus(ctx, accessToken)
+	if err != nil {
+		return domainstats.NeedsAttention{}, fmt.Errorf("statistics: get hive inspection status: %w", err)
+	}
+
+	return domainstats.ComputeNeedsAttention(apiaries, hives, latestByHive, thresholdDays, time.Now().UTC()), nil
 }
 
 // fetchAll fetches every apiary, hive, and inspection belonging to

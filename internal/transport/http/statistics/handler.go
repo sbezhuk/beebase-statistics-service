@@ -109,6 +109,38 @@ func (h *Handler) Activity(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, newActivityResponse(items))
 }
 
+// Harvest handles GET /statistics/harvest.
+func (h *Handler) Harvest(w http.ResponseWriter, r *http.Request) {
+	token, ok := h.requireToken(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := h.service.HarvestStats(r.Context(), token)
+	if err != nil {
+		httpx.WriteInternalError(w, h.log, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, newHarvestStatsResponse(stats))
+}
+
+// NeedsAttention handles GET /statistics/needs-attention.
+func (h *Handler) NeedsAttention(w http.ResponseWriter, r *http.Request) {
+	token, ok := h.requireToken(w, r)
+	if !ok {
+		return
+	}
+
+	stats, err := h.service.NeedsAttention(r.Context(), token)
+	if err != nil {
+		httpx.WriteInternalError(w, h.log, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, newNeedsAttentionResponse(stats))
+}
+
 // requireToken returns the caller's raw access token, read back off the
 // request's own Authorization header, which httpmw.RequireAuth already
 // validated as a well-formed bearer token before this handler ran.

@@ -10,11 +10,12 @@ info:
     token.
 
     This service holds no data of its own. Every endpoint fetches the
-    caller's apiaries, hives, and inspections from apiary-service,
-    hive-service, and inspection-service (forwarding the caller's own
-    access token to each) and computes statistics fresh from that
-    snapshot - there is no cache and nothing here is ever stale or mocked.
-  version: 0.6.0
+    caller's apiaries, hives, inspections, and harvest records from
+    apiary-service, hive-service, inspection-service, and
+    harvest-service (forwarding the caller's own access token to each)
+    and computes statistics fresh from that snapshot - there is no cache
+    and nothing here is ever stale or mocked.
+  version: 0.8.0
 servers:
   - url: http://localhost:8080
 
@@ -22,7 +23,7 @@ tags:
   - name: system
     description: Liveness and readiness probes.
   - name: statistics
-    description: Dashboard statistics computed from a user's own apiaries, hives, and inspections.
+    description: Dashboard statistics computed from a user's own apiaries, hives, inspections, and harvest records.
 
 security:
   - bearerAuth: []
@@ -156,6 +157,68 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
 
+  /api/v1/statistics/harvest:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's harvest-focused section
+      description: >
+        Fetches the caller's hives, then every harvest record across
+        them from harvest-service. A caller with no harvest records yet
+        gets a "200" with total_harvests 0, an empty
+        total_amount_by_unit, and null latest fields - not an error -
+        distinguishable from a failed request, which returns "500"
+        instead.
+      responses:
+        "200":
+          description: The caller's harvest statistics, possibly empty.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HarvestStatsResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (hive/harvest-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /api/v1/statistics/needs-attention:
+    get:
+      tags: [statistics]
+      summary: The Dashboard's actionable "Needs Attention" section
+      description: >
+        Counts of apiaries and hives that currently need the caller's
+        attention, plus the configured inspection warning threshold
+        behind the hive count - the client reads the threshold from
+        here rather than hardcoding or duplicating it. An apiary needs
+        attention the instant it has zero hives, with no grace period
+        based on its age. A hive needs attention when it's never been
+        inspected, or its latest inspection is older than
+        inspection_warning_threshold_days; the comparison is date-based
+        (UTC calendar dates), so a hive inspected exactly on the
+        threshold is still OK. This is the same rule, and the same
+        configured threshold, that GET /api/v1/hives?needs_inspection=true
+        on hive-service applies - the two are always consistent.
+      responses:
+        "200":
+          description: The caller's Needs Attention counts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NeedsAttentionResponse" }
+        "401":
+          description: Missing, invalid, or expired access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: A required upstream service (apiary/hive/inspection-service) failed or was unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -180,9 +243,6 @@ components:
         inspections_this_month: { type: integer }
         inspections_this_year: { type: integer }
         apiaries_without_hives: { type: integer }
-        hives_without_inspections: { type: integer }
-        avg_hives_per_apiary: { type: number, format: double }
-        avg_inspections_per_hive: { type: number, format: double }
         latest_inspection_at:
           type: string
           format: date-time
@@ -262,6 +322,46 @@ components:
         items:
           type: array
           items: { $ref: "#/components/schemas/ActivityItem" }
+
+    HarvestAmountByUnit:
+      type: object
+      properties:
+        unit: { type: string, example: kg }
+        total: { type: number, format: double }
+
+    HarvestStatsResponse:
+      type: object
+      properties:
+        total_harvests: { type: integer }
+        total_amount_by_unit:
+          type: array
+          items: { $ref: "#/components/schemas/HarvestAmountByUnit" }
+          description: >
+            One entry per unit present in the caller's harvest records -
+            amounts are only ever summed within the same unit, never
+            combined across units. Empty when total_harvests is 0.
+        latest_harvested_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null when the caller has no harvest records yet.
+        latest_product:
+          type: string
+          nullable: true
+          description: The product of the most recent harvest record. Null when the caller has no harvest records yet.
+
+    NeedsAttentionResponse:
+      type: object
+      properties:
+        apiaries_without_hives: { type: integer }
+        hives_needing_inspection: { type: integer }
+        inspection_warning_threshold_days:
+          type: integer
+          description: >
+            The number of days after a hive's latest inspection before
+            it's considered to need inspection - configurable on
+            inspection-service, defaulting to 14. The same value
+            hive-service's own needs_inspection filter uses.
 
     ErrorResponse:
       type: object

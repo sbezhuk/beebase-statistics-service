@@ -11,32 +11,26 @@ import (
 // OverviewResponse is the public representation of the Dashboard's
 // top-level summary.
 type OverviewResponse struct {
-	TotalApiaries           int        `json:"total_apiaries"`
-	TotalHives              int        `json:"total_hives"`
-	TotalInspections        int        `json:"total_inspections"`
-	InspectionsLast7Days    int        `json:"inspections_last_7_days"`
-	InspectionsThisMonth    int        `json:"inspections_this_month"`
-	InspectionsThisYear     int        `json:"inspections_this_year"`
-	ApiariesWithoutHives    int        `json:"apiaries_without_hives"`
-	HivesWithoutInspections int        `json:"hives_without_inspections"`
-	AvgHivesPerApiary       float64    `json:"avg_hives_per_apiary"`
-	AvgInspectionsPerHive   float64    `json:"avg_inspections_per_hive"`
-	LatestInspectionAt      *time.Time `json:"latest_inspection_at"`
+	TotalApiaries        int        `json:"total_apiaries"`
+	TotalHives           int        `json:"total_hives"`
+	TotalInspections     int        `json:"total_inspections"`
+	InspectionsLast7Days int        `json:"inspections_last_7_days"`
+	InspectionsThisMonth int        `json:"inspections_this_month"`
+	InspectionsThisYear  int        `json:"inspections_this_year"`
+	ApiariesWithoutHives int        `json:"apiaries_without_hives"`
+	LatestInspectionAt   *time.Time `json:"latest_inspection_at"`
 }
 
 func newOverviewResponse(o domainstats.Overview) OverviewResponse {
 	return OverviewResponse{
-		TotalApiaries:           o.TotalApiaries,
-		TotalHives:              o.TotalHives,
-		TotalInspections:        o.TotalInspections,
-		InspectionsLast7Days:    o.InspectionsLast7Days,
-		InspectionsThisMonth:    o.InspectionsThisMonth,
-		InspectionsThisYear:     o.InspectionsThisYear,
-		ApiariesWithoutHives:    o.ApiariesWithoutHives,
-		HivesWithoutInspections: o.HivesWithoutInspections,
-		AvgHivesPerApiary:       o.AvgHivesPerApiary,
-		AvgInspectionsPerHive:   o.AvgInspectionsPerHive,
-		LatestInspectionAt:      o.LatestInspectionAt,
+		TotalApiaries:        o.TotalApiaries,
+		TotalHives:           o.TotalHives,
+		TotalInspections:     o.TotalInspections,
+		InspectionsLast7Days: o.InspectionsLast7Days,
+		InspectionsThisMonth: o.InspectionsThisMonth,
+		InspectionsThisYear:  o.InspectionsThisYear,
+		ApiariesWithoutHives: o.ApiariesWithoutHives,
+		LatestInspectionAt:   o.LatestInspectionAt,
 	}
 }
 
@@ -170,4 +164,55 @@ func newActivityResponse(items []domainstats.ActivityItem) ActivityResponse {
 		}
 	}
 	return ActivityResponse{Items: out}
+}
+
+// HarvestAmountByUnitResponse is the total harvested amount recorded in
+// one unit.
+type HarvestAmountByUnitResponse struct {
+	Unit  string  `json:"unit"`
+	Total float64 `json:"total"`
+}
+
+// HarvestStatsResponse is the public representation of the Dashboard's
+// harvest-focused section. A caller with no harvest records yet gets a
+// valid response with TotalHarvests 0, an empty TotalAmountByUnit, and
+// null latest fields - not an error.
+type HarvestStatsResponse struct {
+	TotalHarvests     int                           `json:"total_harvests"`
+	TotalAmountByUnit []HarvestAmountByUnitResponse `json:"total_amount_by_unit"`
+	LatestHarvestedAt *time.Time                    `json:"latest_harvested_at"`
+	LatestProduct     *string                       `json:"latest_product"`
+}
+
+func newHarvestStatsResponse(s domainstats.HarvestStats) HarvestStatsResponse {
+	byUnit := make([]HarvestAmountByUnitResponse, len(s.TotalAmountByUnit))
+	for i, u := range s.TotalAmountByUnit {
+		byUnit[i] = HarvestAmountByUnitResponse{Unit: u.Unit, Total: u.Total}
+	}
+
+	return HarvestStatsResponse{
+		TotalHarvests:     s.TotalHarvests,
+		TotalAmountByUnit: byUnit,
+		LatestHarvestedAt: s.LatestHarvestedAt,
+		LatestProduct:     s.LatestProduct,
+	}
+}
+
+// NeedsAttentionResponse is the public representation of the Dashboard's
+// actionable "Needs Attention" section. The client reads
+// InspectionWarningThresholdDays from here rather than hardcoding or
+// duplicating it - the backend is the only source of truth for that
+// value (see beebase-common/inspectionwarning).
+type NeedsAttentionResponse struct {
+	ApiariesWithoutHives           int `json:"apiaries_without_hives"`
+	HivesNeedingInspection         int `json:"hives_needing_inspection"`
+	InspectionWarningThresholdDays int `json:"inspection_warning_threshold_days"`
+}
+
+func newNeedsAttentionResponse(s domainstats.NeedsAttention) NeedsAttentionResponse {
+	return NeedsAttentionResponse{
+		ApiariesWithoutHives:           s.ApiariesWithoutHives,
+		HivesNeedingInspection:         s.HivesNeedingInspection,
+		InspectionWarningThresholdDays: s.InspectionWarningThresholdDays,
+	}
 }

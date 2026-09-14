@@ -166,11 +166,9 @@ page (and, when the boundary doesn't land on a whole page, the page
 before it too) - at most 3 requests, each of size `limit`, regardless of
 how many inspections the caller has.
 
-harvest-service has no endpoint listing every harvest a caller owns in
-one call, only `GET /hives/{hiveID}/harvest`, scoped to a single hive -
-so `/statistics/harvest` pages through that endpoint once per hive the
-caller owns. Same tradeoff, same justification: fine for a beekeeper's
-handful of hives, not designed to scale past that.
+`/statistics/harvest` uses harvest-service's user-scoped
+`GET /api/v1/harvests` collection and follows its pagination. It does not
+fan out one nested request per hive.
 
 ## Development
 

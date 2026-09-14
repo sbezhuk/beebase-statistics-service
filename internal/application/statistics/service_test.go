@@ -95,7 +95,7 @@ type fakeHarvestLister struct {
 	err     error
 }
 
-func (f *fakeHarvestLister) ListAllForHives(_ context.Context, accessToken string, _ []uuid.UUID) ([]domainstats.Harvest, error) {
+func (f *fakeHarvestLister) ListAll(_ context.Context, accessToken string) ([]domainstats.Harvest, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

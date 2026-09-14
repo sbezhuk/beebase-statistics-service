@@ -3,7 +3,6 @@ package harvestclient_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,16 +18,15 @@ type fakePage struct {
 	Pagination map[string]any   `json:"pagination"`
 }
 
-func TestClient_ListAllForHives_SingleHiveSinglePage(t *testing.T) {
+func TestClient_ListAll_SinglePage(t *testing.T) {
 	id := uuid.New()
-	hiveID := uuid.New()
 	harvestedAt := time.Date(2026, 3, 15, 9, 0, 0, 0, time.UTC)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer good-token" {
 			t.Errorf("Authorization header = %q, want forwarded bearer token", r.Header.Get("Authorization"))
 		}
-		wantPath := fmt.Sprintf("/api/v1/hives/%s/harvest", hiveID)
+		wantPath := "/api/v1/harvests"
 		if r.URL.Path != wantPath {
 			t.Errorf("path = %q, want %q", r.URL.Path, wantPath)
 		}
@@ -50,9 +48,9 @@ func TestClient_ListAllForHives_SingleHiveSinglePage(t *testing.T) {
 	defer srv.Close()
 
 	client := harvestclient.New(srv.URL)
-	got, err := client.ListAllForHives(context.Background(), "good-token", []uuid.UUID{hiveID})
+	got, err := client.ListAll(context.Background(), "good-token")
 	if err != nil {
-		t.Fatalf("ListAllForHives: %v", err)
+		t.Fatalf("ListAll: %v", err)
 	}
 	if len(got) != 1 {
 		t.Fatalf("len(got) = %d, want 1", len(got))
@@ -65,13 +63,14 @@ func TestClient_ListAllForHives_SingleHiveSinglePage(t *testing.T) {
 	}
 }
 
-func TestClient_ListAllForHives_FansOutAcrossHives(t *testing.T) {
-	hiveA := uuid.New()
-	hiveB := uuid.New()
-	requestedPaths := map[string]int{}
+func TestClient_ListAll_PagesGlobalEndpoint(t *testing.T) {
+	requestedPages := 0
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestedPaths[r.URL.Path]++
+		if r.URL.Path != "/api/v1/harvests" {
+			t.Errorf("path = %q, want global harvest path", r.URL.Path)
+		}
+		requestedPages++
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(fakePage{
@@ -90,52 +89,49 @@ func TestClient_ListAllForHives_FansOutAcrossHives(t *testing.T) {
 	defer srv.Close()
 
 	client := harvestclient.New(srv.URL)
-	got, err := client.ListAllForHives(context.Background(), "token", []uuid.UUID{hiveA, hiveB})
+	got, err := client.ListAll(context.Background(), "token")
 	if err != nil {
-		t.Fatalf("ListAllForHives: %v", err)
+		t.Fatalf("ListAll: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("len(got) = %d, want 2 (one per hive)", len(got))
-	}
-	if requestedPaths[fmt.Sprintf("/api/v1/hives/%s/harvest", hiveA)] != 1 {
-		t.Errorf("hive A requested %d times, want 1", requestedPaths[fmt.Sprintf("/api/v1/hives/%s/harvest", hiveA)])
-	}
-	if requestedPaths[fmt.Sprintf("/api/v1/hives/%s/harvest", hiveB)] != 1 {
-		t.Errorf("hive B requested %d times, want 1", requestedPaths[fmt.Sprintf("/api/v1/hives/%s/harvest", hiveB)])
+	if len(got) != 1 || requestedPages != 1 {
+		t.Fatalf("got %d records in %d requests, want 1 in 1 request", len(got), requestedPages)
 	}
 }
 
-func TestClient_ListAllForHives_NoHivesMakesNoRequests(t *testing.T) {
+func TestClient_ListAll_EmptyPageMakesOneRequest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("unexpected request to %s", r.URL.Path)
+		if r.URL.Path != "/api/v1/harvests" {
+			t.Errorf("unexpected request to %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(fakePage{Pagination: map[string]any{"total_pages": 1}})
 	}))
 	defer srv.Close()
 
 	client := harvestclient.New(srv.URL)
-	got, err := client.ListAllForHives(context.Background(), "token", nil)
+	got, err := client.ListAll(context.Background(), "token")
 	if err != nil {
-		t.Fatalf("ListAllForHives: %v", err)
+		t.Fatalf("ListAll: %v", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("len(got) = %d, want 0", len(got))
 	}
 }
 
-func TestClient_ListAllForHives_UnexpectedStatusFailsClosed(t *testing.T) {
+func TestClient_ListAll_UnexpectedStatusFailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
 	client := harvestclient.New(srv.URL)
-	if _, err := client.ListAllForHives(context.Background(), "token", []uuid.UUID{uuid.New()}); err == nil {
-		t.Fatal("ListAllForHives against a 500: got nil error, want a failure")
+	if _, err := client.ListAll(context.Background(), "token"); err == nil {
+		t.Fatal("ListAll against a 500: got nil error, want a failure")
 	}
 }
 
-func TestClient_ListAllForHives_UnreachableServer(t *testing.T) {
+func TestClient_ListAll_UnreachableServer(t *testing.T) {
 	client := harvestclient.New("http://127.0.0.1:1") // nothing listens here
-	if _, err := client.ListAllForHives(context.Background(), "token", []uuid.UUID{uuid.New()}); err == nil {
-		t.Fatal("ListAllForHives against an unreachable server: got nil error, want a failure")
+	if _, err := client.ListAll(context.Background(), "token"); err == nil {
+		t.Fatal("ListAll against an unreachable server: got nil error, want a failure")
 	}
 }

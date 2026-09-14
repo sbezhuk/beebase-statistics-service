@@ -56,6 +56,24 @@ To run it alongside the rest of the stack, use `beebase-gateway`'s
 docker-compose, which builds every service from sibling checkouts and
 routes between them.
 
+### Building with beebase-common
+
+This service depends on the private `github.com/sbezhuk/beebase-common`
+module. A local `go build`/`go test` resolves it through your own git
+credentials, but building the Docker image needs a GitHub PAT with
+`contents:read` on that repo, supplied as a BuildKit secret so it never
+ends up in an image layer:
+
+```bash
+export BEEBASE_COMMON_GH_TOKEN=$(gh auth token)   # or any read-scoped PAT
+docker build --secret id=github_token,env=BEEBASE_COMMON_GH_TOKEN .
+```
+
+`beebase-gateway`'s docker-compose already wires this secret through
+for you (set `BEEBASE_COMMON_GH_TOKEN` before `docker compose build`).
+CI needs the same token as a `BEEBASE_COMMON_GH_TOKEN` GitHub Actions
+secret on this repo.
+
 ## Configuration
 
 All configuration is via environment variables (see

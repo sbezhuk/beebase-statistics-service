@@ -41,6 +41,16 @@ func (f *fakeHiveLister) ListAll(_ context.Context, accessToken string) ([]domai
 type fakeInspectionLister struct {
 	byToken map[string][]domainstats.Inspection
 	err     error
+
+	// recentByToken/recentErr back ListRecent independently of
+	// byToken/err (which back ListAll), so a test can make one fail
+	// while the other succeeds - proving which one RecentActivity
+	// actually calls.
+	recentByToken map[string][]domainstats.Inspection
+	recentErr     error
+	// lastLimit records the limit ListRecent was last called with, so a
+	// test can assert it was forwarded correctly.
+	lastLimit int
 }
 
 func (f *fakeInspectionLister) ListAll(_ context.Context, accessToken string) ([]domainstats.Inspection, error) {
@@ -48,6 +58,20 @@ func (f *fakeInspectionLister) ListAll(_ context.Context, accessToken string) ([
 		return nil, f.err
 	}
 	return f.byToken[accessToken], nil
+}
+
+// ListRecent mimics inspectionclient.Client.ListRecent's contract: at
+// most limit items, already newest-first.
+func (f *fakeInspectionLister) ListRecent(_ context.Context, accessToken string, limit int) ([]domainstats.Inspection, error) {
+	f.lastLimit = limit
+	if f.recentErr != nil {
+		return nil, f.recentErr
+	}
+	items := f.recentByToken[accessToken]
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
 }
 
 type fakeHarvestLister struct {
@@ -128,16 +152,18 @@ func TestRecentActivity_ForwardsLimit(t *testing.T) {
 	apiary := domainstats.Apiary{ID: uuid.New(), Name: "Home"}
 	hive := domainstats.Hive{ID: uuid.New(), ApiaryID: apiary.ID, Name: "Hive 1"}
 	now := time.Now().UTC()
+	// Already newest-first, matching ListRecent's real contract.
 	inspections := []domainstats.Inspection{
 		{ID: uuid.New(), HiveID: hive.ID, InspectedAt: now},
 		{ID: uuid.New(), HiveID: hive.ID, InspectedAt: now.Add(-time.Hour)},
 		{ID: uuid.New(), HiveID: hive.ID, InspectedAt: now.Add(-2 * time.Hour)},
 	}
 
+	inspectionLister := &fakeInspectionLister{recentByToken: map[string][]domainstats.Inspection{token: inspections}}
 	svc := appstatistics.NewService(
 		&fakeApiaryLister{byToken: map[string][]domainstats.Apiary{token: {apiary}}},
 		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
-		&fakeInspectionLister{byToken: map[string][]domainstats.Inspection{token: inspections}},
+		inspectionLister,
 		&fakeHarvestLister{},
 	)
 
@@ -147,6 +173,99 @@ func TestRecentActivity_ForwardsLimit(t *testing.T) {
 	}
 	if len(items) != 2 {
 		t.Fatalf("len(items) = %d, want 2", len(items))
+	}
+	if inspectionLister.lastLimit != 2 {
+		t.Errorf("ListRecent called with limit = %d, want 2", inspectionLister.lastLimit)
+	}
+}
+
+func TestRecentActivity_DoesNotFetchEntireInspectionHistory(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+	insp := domainstats.Inspection{ID: uuid.New(), HiveID: hive.ID, InspectedAt: time.Now().UTC()}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{
+			// If RecentActivity ever calls ListAll instead of ListRecent,
+			// this makes the test fail loudly instead of silently
+			// returning the full history.
+			err:           errors.New("RecentActivity must not fetch the entire inspection history"),
+			recentByToken: map[string][]domainstats.Inspection{token: {insp}},
+		},
+		&fakeHarvestLister{},
+	)
+
+	items, err := svc.RecentActivity(context.Background(), token, 10)
+	if err != nil {
+		t.Fatalf("RecentActivity: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+}
+
+func TestRecentActivity_FewerItemsWhenFewerExist(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+	insp := domainstats.Inspection{ID: uuid.New(), HiveID: hive.ID, InspectedAt: time.Now().UTC()}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{recentByToken: map[string][]domainstats.Inspection{token: {insp}}},
+		&fakeHarvestLister{},
+	)
+
+	items, err := svc.RecentActivity(context.Background(), token, 10)
+	if err != nil {
+		t.Fatalf("RecentActivity: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1 (only one inspection exists, limit was 10)", len(items))
+	}
+}
+
+func TestRecentActivity_LimitOneReturnsOnlyTheLatest(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+	now := time.Now().UTC()
+	newest := domainstats.Inspection{ID: uuid.New(), HiveID: hive.ID, InspectedAt: now, Notes: "newest"}
+	older := domainstats.Inspection{ID: uuid.New(), HiveID: hive.ID, InspectedAt: now.Add(-time.Hour), Notes: "older"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{recentByToken: map[string][]domainstats.Inspection{token: {newest, older}}},
+		&fakeHarvestLister{},
+	)
+
+	items, err := svc.RecentActivity(context.Background(), token, 1)
+	if err != nil {
+		t.Fatalf("RecentActivity: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].InspectionID != newest.ID {
+		t.Errorf("items[0] = %s, want the newest inspection %s", items[0].InspectionID, newest.ID)
+	}
+}
+
+func TestRecentActivity_UpstreamErrorPropagates(t *testing.T) {
+	token := "user-token"
+	hive := domainstats.Hive{ID: uuid.New(), Name: "Hive 1"}
+
+	svc := appstatistics.NewService(
+		&fakeApiaryLister{},
+		&fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {hive}}},
+		&fakeInspectionLister{recentErr: errors.New("inspection-service unreachable")},
+		&fakeHarvestLister{},
+	)
+
+	if _, err := svc.RecentActivity(context.Background(), token, 10); err == nil {
+		t.Fatal("RecentActivity: got nil error, want upstream failure to propagate")
 	}
 }
 

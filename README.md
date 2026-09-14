@@ -124,10 +124,19 @@ envelope:
 
 ## Known tradeoff
 
-Every request pages through the caller's *entire* inspection history (no
-caching, no date-range filtering) to compute counts, windows, and the
-30-day chart in one pass. For a single beekeeper's personal data this is
-fine; it isn't designed to scale past that without revisiting.
+`/overview` and `/inspections` each page through the caller's *entire*
+inspection history (no caching, no date-range filtering) to compute
+counts, windows, and the 30-day chart in one pass. For a single
+beekeeper's personal data this is fine; it isn't designed to scale past
+that without revisiting.
+
+`/activity` is the exception: inspection-service's default list order is
+InspectedAt ascending with no descending variant, so instead of paging
+through everything and sorting client-side, it fetches only the tail of
+that order - a 1-row probe for the total, then the last `limit`-sized
+page (and, when the boundary doesn't land on a whole page, the page
+before it too) - at most 3 requests, each of size `limit`, regardless of
+how many inspections the caller has.
 
 harvest-service has no endpoint listing every harvest a caller owns in
 one call, only `GET /hives/{hiveID}/harvest`, scoped to a single hive -

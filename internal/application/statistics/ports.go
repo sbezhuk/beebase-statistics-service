@@ -31,6 +31,10 @@ type InspectionLister interface {
 	// ListAll returns every inspection belonging to whoever presented
 	// accessToken, across all of their hives.
 	ListAll(ctx context.Context, accessToken string) ([]domainstats.Inspection, error)
+	// ListRecent returns at most limit of whoever presented accessToken's
+	// most recent inspections, newest first by InspectedAt, without
+	// paging through their entire inspection history to get there.
+	ListRecent(ctx context.Context, accessToken string, limit int) ([]domainstats.Inspection, error)
 }
 
 // HarvestLister is this service's dependency on harvest-service.

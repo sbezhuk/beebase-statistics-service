@@ -51,6 +51,7 @@ type inspectionItem struct {
 type inspectionPage struct {
 	Items      []inspectionItem `json:"items"`
 	Pagination struct {
+		Total      int `json:"total"`
 		TotalPages int `json:"total_pages"`
 	} `json:"pagination"`
 }
@@ -62,7 +63,7 @@ func (c *Client) ListAll(ctx context.Context, accessToken string) ([]domainstats
 	var out []domainstats.Inspection
 
 	for page := 1; ; page++ {
-		body, err := c.fetchPage(ctx, accessToken, page)
+		body, err := c.fetchPage(ctx, accessToken, page, pageLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -84,8 +85,68 @@ func (c *Client) ListAll(ctx context.Context, accessToken string) ([]domainstats
 	return out, nil
 }
 
-func (c *Client) fetchPage(ctx context.Context, accessToken string, page int) (inspectionPage, error) {
-	u := fmt.Sprintf("%s/api/v1/inspections?page=%d&limit=%d", c.baseURL, page, pageLimit)
+// ListRecent implements application/statistics.InspectionLister's bounded
+// query. inspection-service's GET /api/v1/inspections has no "newest
+// first" order of its own - its default order is InspectedAt ascending
+// (oldest first, ties broken by id ascending), and its only other
+// supported order is by creation date, not InspectedAt - so instead of
+// paging through everything and sorting client-side, this fetches only
+// the tail of that ascending order: one minimal probe request to learn
+// the total record count, then the last limit-sized page (and, when the
+// caller's total isn't a multiple of limit, the page before it too, to
+// fill in the remainder), reversed to newest-first. At most 3 requests,
+// each transferring at most limit rows, regardless of how many
+// inspections the caller has.
+func (c *Client) ListRecent(ctx context.Context, accessToken string, limit int) ([]domainstats.Inspection, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	probe, err := c.fetchPage(ctx, accessToken, 1, 1)
+	if err != nil {
+		return nil, err
+	}
+	total := probe.Pagination.Total
+	if total == 0 {
+		return nil, nil
+	}
+
+	lastPage := (total + limit - 1) / limit
+
+	last, err := c.fetchPage(ctx, accessToken, lastPage, limit)
+	if err != nil {
+		return nil, err
+	}
+	items := last.Items
+
+	if len(items) < limit && lastPage > 1 {
+		prev, err := c.fetchPage(ctx, accessToken, lastPage-1, limit)
+		if err != nil {
+			return nil, err
+		}
+		need := limit - len(items)
+		start := len(prev.Items) - need
+		if start < 0 {
+			start = 0
+		}
+		items = append(append([]inspectionItem{}, prev.Items[start:]...), items...)
+	}
+
+	// items is ascending (oldest -> newest); reverse for newest-first.
+	out := make([]domainstats.Inspection, len(items))
+	for i, item := range items {
+		out[len(items)-1-i] = domainstats.Inspection{
+			ID:          item.ID,
+			HiveID:      item.HiveID,
+			InspectedAt: item.InspectedAt,
+			Notes:       item.Notes,
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) fetchPage(ctx context.Context, accessToken string, page, limit int) (inspectionPage, error) {
+	u := fmt.Sprintf("%s/api/v1/inspections?page=%d&limit=%d", c.baseURL, page, limit)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {

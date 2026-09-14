@@ -60,11 +60,23 @@ func (s *Service) InspectionStats(ctx context.Context, accessToken string) (doma
 }
 
 // RecentActivity returns the caller's most recent inspections, newest
-// first, capped at limit.
+// first, capped at limit. Unlike Overview/InspectionStats, it fetches
+// only the inspections it needs (via InspectionLister.ListRecent)
+// instead of paging through the caller's entire inspection history -
+// apiaries and hives are still fetched in full, but those are typically
+// few for a single beekeeper (see fetchAll's doc comment).
 func (s *Service) RecentActivity(ctx context.Context, accessToken string, limit int) ([]domainstats.ActivityItem, error) {
-	apiaries, hives, inspections, err := s.fetchAll(ctx, accessToken)
+	apiaries, err := s.apiaries.ListAll(ctx, accessToken)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("statistics: list apiaries: %w", err)
+	}
+	hives, err := s.hives.ListAll(ctx, accessToken)
+	if err != nil {
+		return nil, fmt.Errorf("statistics: list hives: %w", err)
+	}
+	inspections, err := s.inspections.ListRecent(ctx, accessToken, limit)
+	if err != nil {
+		return nil, fmt.Errorf("statistics: list recent inspections: %w", err)
 	}
 	return domainstats.ComputeRecentActivity(apiaries, hives, inspections, limit), nil
 }

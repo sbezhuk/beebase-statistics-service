@@ -43,8 +43,8 @@ func New(baseURL string) *Client {
 
 type inspectionItem struct {
 	ID          uuid.UUID `json:"id"`
-	HiveID      uuid.UUID `json:"hive_id"`
-	InspectedAt time.Time `json:"inspected_at"`
+	HiveID      uuid.UUID `json:"hiveId"`
+	InspectedAt time.Time `json:"inspectedAt"`
 	Notes       string    `json:"notes"`
 }
 
@@ -52,7 +52,7 @@ type inspectionPage struct {
 	Items      []inspectionItem `json:"items"`
 	Pagination struct {
 		Total      int `json:"total"`
-		TotalPages int `json:"total_pages"`
+		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
 
@@ -146,12 +146,12 @@ func (c *Client) ListRecent(ctx context.Context, accessToken string, limit int) 
 }
 
 type hiveInspectionStatusItem struct {
-	HiveID            uuid.UUID `json:"hive_id"`
-	LatestInspectedAt time.Time `json:"latest_inspected_at"`
+	HiveID            uuid.UUID `json:"hiveId"`
+	LatestInspectedAt time.Time `json:"latestInspectedAt"`
 }
 
 type hiveInspectionStatusResponse struct {
-	ThresholdDays int                        `json:"threshold_days"`
+	ThresholdDays int                        `json:"thresholdDays"`
 	Hives         []hiveInspectionStatusItem `json:"hives"`
 }
 

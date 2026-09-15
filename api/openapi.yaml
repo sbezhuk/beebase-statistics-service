@@ -236,14 +236,14 @@ components:
     OverviewResponse:
       type: object
       properties:
-        total_apiaries: { type: integer }
-        total_hives: { type: integer }
-        total_inspections: { type: integer }
-        inspections_last_7_days: { type: integer }
-        inspections_this_month: { type: integer }
-        inspections_this_year: { type: integer }
-        apiaries_without_hives: { type: integer }
-        latest_inspection_at:
+        totalApiaries: { type: integer }
+        totalHives: { type: integer }
+        totalInspections: { type: integer }
+        inspectionsLast7Days: { type: integer }
+        inspectionsThisMonth: { type: integer }
+        inspectionsThisYear: { type: integer }
+        apiariesWithoutHives: { type: integer }
+        latestInspectionAt:
           type: string
           format: date-time
           nullable: true
@@ -252,20 +252,20 @@ components:
     ApiaryHiveCount:
       type: object
       properties:
-        apiary_id: { type: string, format: uuid }
+        apiaryId: { type: string, format: uuid }
         name: { type: string }
-        hive_count: { type: integer }
+        hiveCount: { type: integer }
 
     ApiaryStatsResponse:
       type: object
       properties:
-        total_apiaries: { type: integer }
-        apiaries_without_hives: { type: integer }
-        apiary_with_most_hives:
+        totalApiaries: { type: integer }
+        apiariesWithoutHives: { type: integer }
+        apiaryWithMostHives:
           allOf: [{ $ref: "#/components/schemas/ApiaryHiveCount" }]
           nullable: true
           description: Null when the caller has no hives at all.
-        hive_distribution:
+        hiveDistribution:
           type: array
           items: { $ref: "#/components/schemas/ApiaryHiveCount" }
           description: Covers every apiary, sorted by hive count descending - ready to render as a chart.
@@ -273,11 +273,11 @@ components:
     HiveInspectionCount:
       type: object
       properties:
-        hive_id: { type: string, format: uuid }
-        hive_name: { type: string }
-        apiary_id: { type: string, format: uuid }
-        apiary_name: { type: string }
-        inspection_count: { type: integer }
+        hiveId: { type: string, format: uuid }
+        hiveName: { type: string }
+        apiaryId: { type: string, format: uuid }
+        apiaryName: { type: string }
+        inspectionCount: { type: integer }
 
     DayCount:
       type: object
@@ -288,19 +288,19 @@ components:
     InspectionStatsResponse:
       type: object
       properties:
-        total_inspections: { type: integer }
-        inspections_last_7_days: { type: integer }
-        inspections_this_month: { type: integer }
-        inspections_this_year: { type: integer }
-        hive_with_most_inspections:
+        totalInspections: { type: integer }
+        inspectionsLast7Days: { type: integer }
+        inspectionsThisMonth: { type: integer }
+        inspectionsThisYear: { type: integer }
+        hiveWithMostInspections:
           allOf: [{ $ref: "#/components/schemas/HiveInspectionCount" }]
           nullable: true
           description: Null when the caller has no inspections yet.
-        latest_inspection_at:
+        latestInspectionAt:
           type: string
           format: date-time
           nullable: true
-        activity_last_30_days:
+        activityLast30Days:
           type: array
           items: { $ref: "#/components/schemas/DayCount" }
           description: Always exactly 30 entries, oldest to newest ending today (UTC), zero-filled for days with no inspections.
@@ -308,12 +308,12 @@ components:
     ActivityItem:
       type: object
       properties:
-        inspection_id: { type: string, format: uuid }
-        inspected_at: { type: string, format: date-time }
-        hive_id: { type: string, format: uuid }
-        hive_name: { type: string }
-        apiary_id: { type: string, format: uuid }
-        apiary_name: { type: string }
+        inspectionId: { type: string, format: uuid }
+        inspectedAt: { type: string, format: date-time }
+        hiveId: { type: string, format: uuid }
+        hiveName: { type: string }
+        apiaryId: { type: string, format: uuid }
+        apiaryName: { type: string }
         notes: { type: string }
 
     ActivityResponse:
@@ -332,20 +332,20 @@ components:
     HarvestStatsResponse:
       type: object
       properties:
-        total_harvests: { type: integer }
-        total_amount_by_unit:
+        totalHarvests: { type: integer }
+        totalAmountByUnit:
           type: array
           items: { $ref: "#/components/schemas/HarvestAmountByUnit" }
           description: >
             One entry per unit present in the caller's harvest records -
             amounts are only ever summed within the same unit, never
             combined across units. Empty when total_harvests is 0.
-        latest_harvested_at:
+        latestHarvestedAt:
           type: string
           format: date-time
           nullable: true
           description: Null when the caller has no harvest records yet.
-        latest_product:
+        latestProduct:
           type: string
           nullable: true
           description: The product of the most recent harvest record. Null when the caller has no harvest records yet.
@@ -353,9 +353,9 @@ components:
     NeedsAttentionResponse:
       type: object
       properties:
-        apiaries_without_hives: { type: integer }
-        hives_needing_inspection: { type: integer }
-        inspection_warning_threshold_days:
+        apiariesWithoutHives: { type: integer }
+        hivesNeedingInspection: { type: integer }
+        inspectionWarningThresholdDays:
           type: integer
           description: >
             The number of days after a hive's latest inspection before

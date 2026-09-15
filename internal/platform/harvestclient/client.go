@@ -33,13 +33,13 @@ type harvestItem struct {
 	Product     string    `json:"product"`
 	Amount      float64   `json:"amount"`
 	Unit        string    `json:"unit"`
-	HarvestedAt time.Time `json:"harvested_at"`
+	HarvestedAt time.Time `json:"harvestedAt"`
 }
 
 type harvestPage struct {
 	Items      []harvestItem `json:"items"`
 	Pagination struct {
-		TotalPages int `json:"total_pages"`
+		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
 

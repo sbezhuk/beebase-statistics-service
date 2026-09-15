@@ -47,7 +47,7 @@ type apiaryItem struct {
 type apiaryPage struct {
 	Items      []apiaryItem `json:"items"`
 	Pagination struct {
-		TotalPages int `json:"total_pages"`
+		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
 

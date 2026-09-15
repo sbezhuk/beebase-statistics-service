@@ -41,14 +41,14 @@ func New(baseURL string) *Client {
 
 type hiveItem struct {
 	ID       uuid.UUID `json:"id"`
-	ApiaryID uuid.UUID `json:"apiary_id"`
+	ApiaryID uuid.UUID `json:"apiaryId"`
 	Name     string    `json:"name"`
 }
 
 type hivePage struct {
 	Items      []hiveItem `json:"items"`
 	Pagination struct {
-		TotalPages int `json:"total_pages"`
+		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
 

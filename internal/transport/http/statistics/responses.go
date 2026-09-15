@@ -11,14 +11,14 @@ import (
 // OverviewResponse is the public representation of the Dashboard's
 // top-level summary.
 type OverviewResponse struct {
-	TotalApiaries        int        `json:"total_apiaries"`
-	TotalHives           int        `json:"total_hives"`
-	TotalInspections     int        `json:"total_inspections"`
-	InspectionsLast7Days int        `json:"inspections_last_7_days"`
-	InspectionsThisMonth int        `json:"inspections_this_month"`
-	InspectionsThisYear  int        `json:"inspections_this_year"`
-	ApiariesWithoutHives int        `json:"apiaries_without_hives"`
-	LatestInspectionAt   *time.Time `json:"latest_inspection_at"`
+	TotalApiaries        int        `json:"totalApiaries"`
+	TotalHives           int        `json:"totalHives"`
+	TotalInspections     int        `json:"totalInspections"`
+	InspectionsLast7Days int        `json:"inspectionsLast7Days"`
+	InspectionsThisMonth int        `json:"inspectionsThisMonth"`
+	InspectionsThisYear  int        `json:"inspectionsThisYear"`
+	ApiariesWithoutHives int        `json:"apiariesWithoutHives"`
+	LatestInspectionAt   *time.Time `json:"latestInspectionAt"`
 }
 
 func newOverviewResponse(o domainstats.Overview) OverviewResponse {
@@ -36,9 +36,9 @@ func newOverviewResponse(o domainstats.Overview) OverviewResponse {
 
 // ApiaryHiveCountResponse is one apiary's hive count.
 type ApiaryHiveCountResponse struct {
-	ApiaryID  uuid.UUID `json:"apiary_id"`
+	ApiaryID  uuid.UUID `json:"apiaryId"`
 	Name      string    `json:"name"`
-	HiveCount int       `json:"hive_count"`
+	HiveCount int       `json:"hiveCount"`
 }
 
 func newApiaryHiveCountResponse(c domainstats.ApiaryHiveCount) ApiaryHiveCountResponse {
@@ -48,10 +48,10 @@ func newApiaryHiveCountResponse(c domainstats.ApiaryHiveCount) ApiaryHiveCountRe
 // ApiaryStatsResponse is the public representation of the Dashboard's
 // apiary-focused section.
 type ApiaryStatsResponse struct {
-	TotalApiaries        int                       `json:"total_apiaries"`
-	ApiariesWithoutHives int                       `json:"apiaries_without_hives"`
-	ApiaryWithMostHives  *ApiaryHiveCountResponse  `json:"apiary_with_most_hives"`
-	HiveDistribution     []ApiaryHiveCountResponse `json:"hive_distribution"`
+	TotalApiaries        int                       `json:"totalApiaries"`
+	ApiariesWithoutHives int                       `json:"apiariesWithoutHives"`
+	ApiaryWithMostHives  *ApiaryHiveCountResponse  `json:"apiaryWithMostHives"`
+	HiveDistribution     []ApiaryHiveCountResponse `json:"hiveDistribution"`
 }
 
 func newApiaryStatsResponse(s domainstats.ApiaryStats) ApiaryStatsResponse {
@@ -77,11 +77,11 @@ func newApiaryStatsResponse(s domainstats.ApiaryStats) ApiaryStatsResponse {
 // HiveInspectionCountResponse is one hive's inspection count, including
 // the apiary it belongs to.
 type HiveInspectionCountResponse struct {
-	HiveID          uuid.UUID `json:"hive_id"`
-	HiveName        string    `json:"hive_name"`
-	ApiaryID        uuid.UUID `json:"apiary_id"`
-	ApiaryName      string    `json:"apiary_name"`
-	InspectionCount int       `json:"inspection_count"`
+	HiveID          uuid.UUID `json:"hiveId"`
+	HiveName        string    `json:"hiveName"`
+	ApiaryID        uuid.UUID `json:"apiaryId"`
+	ApiaryName      string    `json:"apiaryName"`
+	InspectionCount int       `json:"inspectionCount"`
 }
 
 // DayCountResponse is the number of inspections performed on one
@@ -94,13 +94,13 @@ type DayCountResponse struct {
 // InspectionStatsResponse is the public representation of the
 // Dashboard's inspection-focused section.
 type InspectionStatsResponse struct {
-	TotalInspections        int                          `json:"total_inspections"`
-	InspectionsLast7Days    int                          `json:"inspections_last_7_days"`
-	InspectionsThisMonth    int                          `json:"inspections_this_month"`
-	InspectionsThisYear     int                          `json:"inspections_this_year"`
-	HiveWithMostInspections *HiveInspectionCountResponse `json:"hive_with_most_inspections"`
-	LatestInspectionAt      *time.Time                   `json:"latest_inspection_at"`
-	ActivityLast30Days      []DayCountResponse           `json:"activity_last_30_days"`
+	TotalInspections        int                          `json:"totalInspections"`
+	InspectionsLast7Days    int                          `json:"inspectionsLast7Days"`
+	InspectionsThisMonth    int                          `json:"inspectionsThisMonth"`
+	InspectionsThisYear     int                          `json:"inspectionsThisYear"`
+	HiveWithMostInspections *HiveInspectionCountResponse `json:"hiveWithMostInspections"`
+	LatestInspectionAt      *time.Time                   `json:"latestInspectionAt"`
+	ActivityLast30Days      []DayCountResponse           `json:"activityLast30Days"`
 }
 
 func newInspectionStatsResponse(s domainstats.InspectionStats) InspectionStatsResponse {
@@ -135,12 +135,12 @@ func newInspectionStatsResponse(s domainstats.InspectionStats) InspectionStatsRe
 // ActivityItemResponse is one inspection as shown in the Dashboard's
 // Recent Activity feed.
 type ActivityItemResponse struct {
-	InspectionID uuid.UUID `json:"inspection_id"`
-	InspectedAt  time.Time `json:"inspected_at"`
-	HiveID       uuid.UUID `json:"hive_id"`
-	HiveName     string    `json:"hive_name"`
-	ApiaryID     uuid.UUID `json:"apiary_id"`
-	ApiaryName   string    `json:"apiary_name"`
+	InspectionID uuid.UUID `json:"inspectionId"`
+	InspectedAt  time.Time `json:"inspectedAt"`
+	HiveID       uuid.UUID `json:"hiveId"`
+	HiveName     string    `json:"hiveName"`
+	ApiaryID     uuid.UUID `json:"apiaryId"`
+	ApiaryName   string    `json:"apiaryName"`
 	Notes        string    `json:"notes"`
 }
 
@@ -178,10 +178,10 @@ type HarvestAmountByUnitResponse struct {
 // valid response with TotalHarvests 0, an empty TotalAmountByUnit, and
 // null latest fields - not an error.
 type HarvestStatsResponse struct {
-	TotalHarvests     int                           `json:"total_harvests"`
-	TotalAmountByUnit []HarvestAmountByUnitResponse `json:"total_amount_by_unit"`
-	LatestHarvestedAt *time.Time                    `json:"latest_harvested_at"`
-	LatestProduct     *string                       `json:"latest_product"`
+	TotalHarvests     int                           `json:"totalHarvests"`
+	TotalAmountByUnit []HarvestAmountByUnitResponse `json:"totalAmountByUnit"`
+	LatestHarvestedAt *time.Time                    `json:"latestHarvestedAt"`
+	LatestProduct     *string                       `json:"latestProduct"`
 }
 
 func newHarvestStatsResponse(s domainstats.HarvestStats) HarvestStatsResponse {
@@ -204,9 +204,9 @@ func newHarvestStatsResponse(s domainstats.HarvestStats) HarvestStatsResponse {
 // duplicating it - the backend is the only source of truth for that
 // value (see beebase-common/inspectionwarning).
 type NeedsAttentionResponse struct {
-	ApiariesWithoutHives           int `json:"apiaries_without_hives"`
-	HivesNeedingInspection         int `json:"hives_needing_inspection"`
-	InspectionWarningThresholdDays int `json:"inspection_warning_threshold_days"`
+	ApiariesWithoutHives           int `json:"apiariesWithoutHives"`
+	HivesNeedingInspection         int `json:"hivesNeedingInspection"`
+	InspectionWarningThresholdDays int `json:"inspectionWarningThresholdDays"`
 }
 
 func newNeedsAttentionResponse(s domainstats.NeedsAttention) NeedsAttentionResponse {

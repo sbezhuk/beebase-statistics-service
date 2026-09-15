@@ -35,7 +35,7 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 			Items: []map[string]any{
 				{"id": id.String(), "name": "Home Apiary"},
 			},
-			Pagination: map[string]any{"page": 1, "limit": 100, "total": 1, "total_pages": 1},
+			Pagination: map[string]any{"page": 1, "limit": 100, "total": 1, "totalPages": 1},
 		})
 	}))
 	defer srv.Close()
@@ -73,7 +73,7 @@ func TestClient_ListAll_PagesThroughEverything(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items:      items,
-			Pagination: map[string]any{"total_pages": len(ids)},
+			Pagination: map[string]any{"totalPages": len(ids)},
 		})
 	}))
 	defer srv.Close()

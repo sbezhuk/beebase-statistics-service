@@ -32,9 +32,9 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items: []map[string]any{
-				{"id": id.String(), "apiary_id": apiaryID.String(), "name": "Hive 1"},
+				{"id": id.String(), "apiaryId": apiaryID.String(), "name": "Hive 1"},
 			},
-			Pagination: map[string]any{"total_pages": 1},
+			Pagination: map[string]any{"totalPages": 1},
 		})
 	}))
 	defer srv.Close()

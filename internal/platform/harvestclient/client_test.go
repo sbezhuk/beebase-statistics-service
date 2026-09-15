@@ -39,10 +39,10 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 					"product":      "HONEY",
 					"amount":       2.5,
 					"unit":         "kg",
-					"harvested_at": harvestedAt.Format(time.RFC3339),
+					"harvestedAt": harvestedAt.Format(time.RFC3339),
 				},
 			},
-			Pagination: map[string]any{"total_pages": 1},
+			Pagination: map[string]any{"totalPages": 1},
 		})
 	}))
 	defer srv.Close()
@@ -80,10 +80,10 @@ func TestClient_ListAll_PagesGlobalEndpoint(t *testing.T) {
 					"product":      "WAX",
 					"amount":       10.0,
 					"unit":         "g",
-					"harvested_at": time.Now().UTC().Format(time.RFC3339),
+					"harvestedAt": time.Now().UTC().Format(time.RFC3339),
 				},
 			},
-			Pagination: map[string]any{"total_pages": 1},
+			Pagination: map[string]any{"totalPages": 1},
 		})
 	}))
 	defer srv.Close()
@@ -103,7 +103,7 @@ func TestClient_ListAll_EmptyPageMakesOneRequest(t *testing.T) {
 		if r.URL.Path != "/api/v1/harvests" {
 			t.Errorf("unexpected request to %s", r.URL.Path)
 		}
-		_ = json.NewEncoder(w).Encode(fakePage{Pagination: map[string]any{"total_pages": 1}})
+		_ = json.NewEncoder(w).Encode(fakePage{Pagination: map[string]any{"totalPages": 1}})
 	}))
 	defer srv.Close()
 

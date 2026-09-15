@@ -40,12 +40,12 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 			Items: []map[string]any{
 				{
 					"id":           id.String(),
-					"hive_id":      hiveID.String(),
-					"inspected_at": inspectedAt.Format(time.RFC3339),
+					"hiveId":      hiveID.String(),
+					"inspectedAt": inspectedAt.Format(time.RFC3339),
 					"notes":        "queen seen",
 				},
 			},
-			Pagination: map[string]any{"total_pages": 1},
+			Pagination: map[string]any{"totalPages": 1},
 		})
 	}))
 	defer srv.Close()
@@ -122,8 +122,8 @@ func newInspectionServer(t *testing.T, total int) (*httptest.Server, *int32) {
 		for i := offset; i < end; i++ {
 			items = append(items, map[string]any{
 				"id":           ids[i].String(),
-				"hive_id":      uuid.Nil.String(),
-				"inspected_at": base.Add(time.Duration(i) * time.Hour).Format(time.RFC3339),
+				"hiveId":      uuid.Nil.String(),
+				"inspectedAt": base.Add(time.Duration(i) * time.Hour).Format(time.RFC3339),
 				"notes":        fmt.Sprintf("item-%d", i),
 			})
 		}
@@ -138,7 +138,7 @@ func newInspectionServer(t *testing.T, total int) (*httptest.Server, *int32) {
 			Items: items,
 			Pagination: map[string]any{
 				"total":       total,
-				"total_pages": totalPages,
+				"totalPages": totalPages,
 			},
 		})
 	}))
@@ -313,9 +313,9 @@ func TestClient_HiveInspectionStatus_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"threshold_days": 14,
+			"thresholdDays": 14,
 			"hives": []map[string]any{
-				{"hive_id": hiveID.String(), "latest_inspected_at": latest.Format(time.RFC3339)},
+				{"hiveId": hiveID.String(), "latestInspectedAt": latest.Format(time.RFC3339)},
 			},
 		})
 	}))
@@ -338,7 +338,7 @@ func TestClient_HiveInspectionStatus_Success(t *testing.T) {
 func TestClient_HiveInspectionStatus_EmptyHivesYieldsEmptyMap(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"threshold_days": 14, "hives": []any{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"thresholdDays": 14, "hives": []any{}})
 	}))
 	defer srv.Close()
 

@@ -39,10 +39,10 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items: []map[string]any{
 				{
-					"id":           id.String(),
+					"id":          id.String(),
 					"hiveId":      hiveID.String(),
 					"inspectedAt": inspectedAt.Format(time.RFC3339),
-					"notes":        "queen seen",
+					"notes":       "queen seen",
 				},
 			},
 			Pagination: map[string]any{"totalPages": 1},
@@ -121,10 +121,10 @@ func newInspectionServer(t *testing.T, total int) (*httptest.Server, *int32) {
 		items := []map[string]any{}
 		for i := offset; i < end; i++ {
 			items = append(items, map[string]any{
-				"id":           ids[i].String(),
+				"id":          ids[i].String(),
 				"hiveId":      uuid.Nil.String(),
 				"inspectedAt": base.Add(time.Duration(i) * time.Hour).Format(time.RFC3339),
-				"notes":        fmt.Sprintf("item-%d", i),
+				"notes":       fmt.Sprintf("item-%d", i),
 			})
 		}
 
@@ -137,7 +137,7 @@ func newInspectionServer(t *testing.T, total int) (*httptest.Server, *int32) {
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items: items,
 			Pagination: map[string]any{
-				"total":       total,
+				"total":      total,
 				"totalPages": totalPages,
 			},
 		})
@@ -289,6 +289,29 @@ func TestClient_ListRecent_UnexpectedStatusFailsClosed(t *testing.T) {
 	client := inspectionclient.New(srv.URL)
 	if _, err := client.ListRecent(context.Background(), "token", 10); err == nil {
 		t.Fatal("ListRecent against a 500: got nil error, want a failure")
+	}
+}
+
+func TestClient_ListAll_AcceptsDateOnlyInspectedAt(t *testing.T) {
+	id := uuid.New()
+	hiveID := uuid.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"` + id.String() + `","hiveId":"` + hiveID.String() + `","inspectedAt":"2026-09-15","notes":"new"}],"pagination":{"totalPages":1}}`))
+	}))
+	defer srv.Close()
+
+	client := inspectionclient.New(srv.URL)
+	got, err := client.ListAll(context.Background(), "token")
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != id || got[0].HiveID != hiveID {
+		t.Fatalf("got = %+v, want one inspection with matching ids", got)
+	}
+	want := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	if !got[0].InspectedAt.Equal(want) {
+		t.Errorf("InspectedAt = %v, want %v", got[0].InspectedAt, want)
 	}
 }
 

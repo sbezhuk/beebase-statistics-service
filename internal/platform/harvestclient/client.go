@@ -29,11 +29,33 @@ func New(baseURL string) *Client {
 }
 
 type harvestItem struct {
-	ID          uuid.UUID `json:"id"`
-	Product     string    `json:"product"`
-	Amount      float64   `json:"amount"`
-	Unit        string    `json:"unit"`
-	HarvestedAt time.Time `json:"harvestedAt"`
+	ID          uuid.UUID    `json:"id"`
+	Product     string       `json:"product"`
+	Amount      float64      `json:"amount"`
+	Unit        string       `json:"unit"`
+	HarvestedAt calendarDate `json:"harvestedAt"`
+}
+
+// calendarDate accepts the current harvest-service contract (a calendar
+// date) and the former RFC3339 representation during rolling deployments.
+// Both become UTC midnight in the statistics domain, which keeps the
+// statistics API's existing date-time response shape intact.
+type calendarDate struct{ time.Time }
+
+func (d *calendarDate) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		parsed, err = time.Parse(time.RFC3339, value)
+	}
+	if err != nil {
+		return fmt.Errorf("parse calendar date %q: %w", value, err)
+	}
+	d.Time = parsed
+	return nil
 }
 
 type harvestPage struct {
@@ -53,7 +75,7 @@ func (c *Client) ListAll(ctx context.Context, accessToken string) ([]domainstats
 			return nil, err
 		}
 		for _, item := range body.Items {
-			out = append(out, domainstats.Harvest{ID: item.ID, Product: item.Product, Amount: item.Amount, Unit: item.Unit, HarvestedAt: item.HarvestedAt})
+			out = append(out, domainstats.Harvest{ID: item.ID, Product: item.Product, Amount: item.Amount, Unit: item.Unit, HarvestedAt: item.HarvestedAt.Time})
 		}
 		if page >= body.Pagination.TotalPages || len(body.Items) == 0 {
 			break

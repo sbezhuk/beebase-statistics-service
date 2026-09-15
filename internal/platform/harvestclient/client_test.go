@@ -35,10 +35,10 @@ func TestClient_ListAll_SinglePage(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items: []map[string]any{
 				{
-					"id":           id.String(),
-					"product":      "HONEY",
-					"amount":       2.5,
-					"unit":         "kg",
+					"id":          id.String(),
+					"product":     "HONEY",
+					"amount":      2.5,
+					"unit":        "kg",
 					"harvestedAt": harvestedAt.Format(time.RFC3339),
 				},
 			},
@@ -76,10 +76,10 @@ func TestClient_ListAll_PagesGlobalEndpoint(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(fakePage{
 			Items: []map[string]any{
 				{
-					"id":           uuid.New().String(),
-					"product":      "WAX",
-					"amount":       10.0,
-					"unit":         "g",
+					"id":          uuid.New().String(),
+					"product":     "WAX",
+					"amount":      10.0,
+					"unit":        "g",
 					"harvestedAt": time.Now().UTC().Format(time.RFC3339),
 				},
 			},
@@ -126,6 +126,28 @@ func TestClient_ListAll_UnexpectedStatusFailsClosed(t *testing.T) {
 	client := harvestclient.New(srv.URL)
 	if _, err := client.ListAll(context.Background(), "token"); err == nil {
 		t.Fatal("ListAll against a 500: got nil error, want a failure")
+	}
+}
+
+func TestClient_ListAll_AcceptsDateOnlyHarvestedAt(t *testing.T) {
+	id := uuid.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"` + id.String() + `","product":"HONEY","amount":2.5,"unit":"kg","harvestedAt":"2026-09-15"}],"pagination":{"totalPages":1}}`))
+	}))
+	defer srv.Close()
+
+	client := harvestclient.New(srv.URL)
+	got, err := client.ListAll(context.Background(), "token")
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != id {
+		t.Fatalf("got = %+v, want one harvest with matching id", got)
+	}
+	want := time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC)
+	if !got[0].HarvestedAt.Equal(want) {
+		t.Errorf("HarvestedAt = %v, want %v", got[0].HarvestedAt, want)
 	}
 }
 

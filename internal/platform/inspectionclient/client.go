@@ -42,10 +42,32 @@ func New(baseURL string) *Client {
 }
 
 type inspectionItem struct {
-	ID          uuid.UUID `json:"id"`
-	HiveID      uuid.UUID `json:"hiveId"`
-	InspectedAt time.Time `json:"inspectedAt"`
-	Notes       string    `json:"notes"`
+	ID          uuid.UUID    `json:"id"`
+	HiveID      uuid.UUID    `json:"hiveId"`
+	InspectedAt calendarDate `json:"inspectedAt"`
+	Notes       string       `json:"notes"`
+}
+
+// calendarDate accepts the current inspection-service contract (a calendar
+// date) and the former RFC3339 representation during rolling deployments.
+// Both become UTC midnight in the statistics domain, which keeps the
+// statistics API's existing date-time response shape intact.
+type calendarDate struct{ time.Time }
+
+func (d *calendarDate) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		parsed, err = time.Parse(time.RFC3339, value)
+	}
+	if err != nil {
+		return fmt.Errorf("parse calendar date %q: %w", value, err)
+	}
+	d.Time = parsed
+	return nil
 }
 
 type inspectionPage struct {
@@ -72,7 +94,7 @@ func (c *Client) ListAll(ctx context.Context, accessToken string) ([]domainstats
 			out = append(out, domainstats.Inspection{
 				ID:          item.ID,
 				HiveID:      item.HiveID,
-				InspectedAt: item.InspectedAt,
+				InspectedAt: item.InspectedAt.Time,
 				Notes:       item.Notes,
 			})
 		}
@@ -138,7 +160,7 @@ func (c *Client) ListRecent(ctx context.Context, accessToken string, limit int) 
 		out[len(items)-1-i] = domainstats.Inspection{
 			ID:          item.ID,
 			HiveID:      item.HiveID,
-			InspectedAt: item.InspectedAt,
+			InspectedAt: item.InspectedAt.Time,
 			Notes:       item.Notes,
 		}
 	}

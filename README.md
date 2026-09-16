@@ -24,8 +24,8 @@ issuing), `beebase-apiary-service`, `beebase-hive-service`,
 
 ```bash
 cp .env.example .env
-#  point AUTH_JWKS_URL, APIARY_SERVICE_URL, HIVE_SERVICE_URL,
-#  INSPECTION_SERVICE_URL, and HARVEST_SERVICE_URL at those services, e.g.
+# point AUTH_JWKS_URL, APIARY_SERVICE_URL, HIVE_SERVICE_URL,
+# INSPECTION_SERVICE_URL, and HARVEST_SERVICE_URL at those services, e.g.
 #   http://localhost:8081/.well-known/jwks.json
 #   http://localhost:8082 / :8083 / :8084 / :8087
 

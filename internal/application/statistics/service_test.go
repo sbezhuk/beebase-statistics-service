@@ -141,6 +141,27 @@ func TestOverview_UpstreamErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestOverviewReadsUpstreamOnEveryRequest_NoPersistentUserState(t *testing.T) {
+	token := "deleted-user-token"
+	apiaries := &fakeApiaryLister{byToken: map[string][]domainstats.Apiary{token: {{ID: uuid.New(), Name: "before deletion"}}}}
+	hives := &fakeHiveLister{byToken: map[string][]domainstats.Hive{token: {}}}
+	inspections := &fakeInspectionLister{byToken: map[string][]domainstats.Inspection{token: {}}}
+	svc := appstatistics.NewService(apiaries, hives, inspections, &fakeHarvestLister{})
+
+	first, err := svc.Overview(context.Background(), token)
+	if err != nil || first.TotalApiaries != 1 {
+		t.Fatalf("first Overview = %+v, err = %v", first, err)
+	}
+	apiaries.byToken[token] = nil // models upstream deletion/authorization cleanup
+	second, err := svc.Overview(context.Background(), token)
+	if err != nil {
+		t.Fatalf("second Overview: %v", err)
+	}
+	if second.TotalApiaries != 0 {
+		t.Fatalf("second Overview retained stale user data: %+v", second)
+	}
+}
+
 func TestApiaryStats_DoesNotFetchInspections(t *testing.T) {
 	token := "user-token"
 	apiary := domainstats.Apiary{ID: uuid.New(), Name: "Home"}

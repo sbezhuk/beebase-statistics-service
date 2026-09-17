@@ -20,6 +20,9 @@ issuing), `beebase-apiary-service`, `beebase-hive-service`,
 `beebase-inspection-service`, `beebase-harvest-service`,
 `beebase-gateway` (single entry point for clients).
 
+Redis is used only for shared access-token session validation; this service
+does not cache dashboard data.
+
 ## Quick start
 
 ```bash

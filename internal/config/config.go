@@ -36,10 +36,12 @@ type Config struct {
 	// HarvestServiceURL are the base URLs this service fetches a
 	// caller's apiaries, hives, inspections, and harvest records from -
 	// it holds no data of its own.
-	ApiaryServiceURL     string
-	HiveServiceURL       string
-	InspectionServiceURL string
-	HarvestServiceURL    string
+	ApiaryServiceURL       string
+	HiveServiceURL         string
+	InspectionServiceURL   string
+	HarvestServiceURL      string
+	SubscriptionServiceURL string
+	InternalServiceToken   string
 }
 
 // Load builds a Config from environment variables, falling back to
@@ -61,10 +63,12 @@ func Load() (*Config, error) {
 
 		AuthJWKSURL: getEnv("AUTH_JWKS_URL", ""),
 
-		ApiaryServiceURL:     getEnv("APIARY_SERVICE_URL", ""),
-		HiveServiceURL:       getEnv("HIVE_SERVICE_URL", ""),
-		InspectionServiceURL: getEnv("INSPECTION_SERVICE_URL", ""),
-		HarvestServiceURL:    getEnv("HARVEST_SERVICE_URL", ""),
+		ApiaryServiceURL:       getEnv("APIARY_SERVICE_URL", ""),
+		HiveServiceURL:         getEnv("HIVE_SERVICE_URL", ""),
+		InspectionServiceURL:   getEnv("INSPECTION_SERVICE_URL", ""),
+		HarvestServiceURL:      getEnv("HARVEST_SERVICE_URL", ""),
+		SubscriptionServiceURL: getEnv("SUBSCRIPTION_SERVICE_URL", ""),
+		InternalServiceToken:   getEnv("INTERNAL_SERVICE_TOKEN", ""),
 	}
 
 	required := []struct{ name, value string }{
@@ -74,6 +78,8 @@ func Load() (*Config, error) {
 		{"HIVE_SERVICE_URL", cfg.HiveServiceURL},
 		{"INSPECTION_SERVICE_URL", cfg.InspectionServiceURL},
 		{"HARVEST_SERVICE_URL", cfg.HarvestServiceURL},
+		{"SUBSCRIPTION_SERVICE_URL", cfg.SubscriptionServiceURL},
+		{"INTERNAL_SERVICE_TOKEN", cfg.InternalServiceToken},
 	}
 	for _, r := range required {
 		if r.value == "" {

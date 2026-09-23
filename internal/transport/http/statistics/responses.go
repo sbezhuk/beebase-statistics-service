@@ -4,9 +4,70 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sbezhuk/beebase-health/health"
 
+	appstatistics "github.com/sbezhuk/beebase-statistics-service/internal/application/statistics"
 	domainstats "github.com/sbezhuk/beebase-statistics-service/internal/domain/statistics"
 )
+
+type ColonyHealthHistoryResponse struct {
+	AlgorithmVersion string                                  `json:"algorithmVersion"`
+	From             string                                  `json:"from"`
+	To               string                                  `json:"to"`
+	Interval         string                                  `json:"interval"`
+	Points           []ColonyHealthHistoryPointResponse      `json:"points"`
+	Inspections      []ColonyHealthHistoryInspectionResponse `json:"inspections"`
+}
+
+type ColonyHealthHistoryPointResponse struct {
+	Date       string                          `json:"date"`
+	State      health.DimensionState           `json:"state"`
+	Coverage   health.EvidenceCoverage         `json:"coverage"`
+	Dimensions []ColonyHealthDimensionResponse `json:"dimensions"`
+}
+
+type ColonyHealthDimensionResponse struct {
+	Dimension health.HealthDimension               `json:"dimension"`
+	State     health.DimensionState                `json:"state"`
+	Coverage  health.EvidenceCoverage              `json:"coverage"`
+	Sources   []ColonyHealthEvidenceSourceResponse `json:"sources"`
+}
+
+type ColonyHealthEvidenceSourceResponse struct {
+	InspectionID   uuid.UUID   `json:"inspectionId"`
+	InspectionType health.Type `json:"inspectionType"`
+	InspectedAt    string      `json:"inspectedAt"`
+	Field          string      `json:"field"`
+}
+
+type ColonyHealthHistoryInspectionResponse struct {
+	ID   uuid.UUID   `json:"id"`
+	Date string      `json:"date"`
+	Type health.Type `json:"type"`
+}
+
+func newHealthHistoryResponse(result appstatistics.HealthHistoryResult) ColonyHealthHistoryResponse {
+	points := make([]ColonyHealthHistoryPointResponse, len(result.Points))
+	for i, point := range result.Points {
+		dimensions := make([]ColonyHealthDimensionResponse, len(point.Evaluation.Dimensions))
+		for j, dimension := range point.Evaluation.Dimensions {
+			sources := make([]ColonyHealthEvidenceSourceResponse, 0, len(dimension.ContributingEvidence))
+			for _, evidence := range dimension.ContributingEvidence {
+				if evidence.Source.InspectionID == nil || evidence.Source.InspectionType == nil {
+					continue
+				}
+				sources = append(sources, ColonyHealthEvidenceSourceResponse{InspectionID: *evidence.Source.InspectionID, InspectionType: *evidence.Source.InspectionType, InspectedAt: evidence.Source.OccurredAt.Format("2006-01-02"), Field: string(evidence.Source.SourceField)})
+			}
+			dimensions[j] = ColonyHealthDimensionResponse{Dimension: dimension.Dimension, State: dimension.State, Coverage: dimension.Coverage, Sources: sources}
+		}
+		points[i] = ColonyHealthHistoryPointResponse{Date: point.Date.Format("2006-01-02"), State: point.Evaluation.State, Coverage: point.Evaluation.Coverage, Dimensions: dimensions}
+	}
+	markers := make([]ColonyHealthHistoryInspectionResponse, len(result.Inspections))
+	for i, marker := range result.Inspections {
+		markers[i] = ColonyHealthHistoryInspectionResponse{ID: marker.ID, Date: marker.Date.Format("2006-01-02"), Type: marker.Type}
+	}
+	return ColonyHealthHistoryResponse{AlgorithmVersion: health.DefaultRecencyPolicyV1().Version, From: result.From.Format("2006-01-02"), To: result.To.Format("2006-01-02"), Interval: "DAY", Points: points, Inspections: markers}
+}
 
 // OverviewResponse is the public representation of the Dashboard's
 // top-level summary.

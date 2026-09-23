@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/sbezhuk/beebase-common v1.6.0-rc1
+	github.com/sbezhuk/beebase-health v1.6.0-rc1
 )
 
 require (

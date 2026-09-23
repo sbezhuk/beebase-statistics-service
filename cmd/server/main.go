@@ -17,6 +17,7 @@ import (
 	"github.com/sbezhuk/beebase-statistics-service/internal/platform/harvestclient"
 	"github.com/sbezhuk/beebase-statistics-service/internal/platform/hiveclient"
 	"github.com/sbezhuk/beebase-statistics-service/internal/platform/inspectionclient"
+	"github.com/sbezhuk/beebase-statistics-service/internal/platform/subscriptionclient"
 	transporthttp "github.com/sbezhuk/beebase-statistics-service/internal/transport/http"
 	statisticshttp "github.com/sbezhuk/beebase-statistics-service/internal/transport/http/statistics"
 
@@ -71,9 +72,10 @@ func run() error {
 
 	apiaries := apiaryclient.New(cfg.ApiaryServiceURL)
 	hives := hiveclient.New(cfg.HiveServiceURL)
-	inspections := inspectionclient.New(cfg.InspectionServiceURL)
+	inspections := inspectionclient.NewWithInternalToken(cfg.InspectionServiceURL, cfg.InternalServiceToken)
 	harvests := harvestclient.New(cfg.HarvestServiceURL)
-	statisticsService := appstatistics.NewService(apiaries, hives, inspections, harvests)
+	subscriptions := subscriptionclient.New(cfg.SubscriptionServiceURL)
+	statisticsService := appstatistics.NewService(apiaries, hives, inspections, harvests, hives, subscriptions, inspections)
 	statisticsHandler := statisticshttp.NewHandler(statisticsService, log)
 
 	router := transporthttp.NewRouter(log, statisticsHandler, verifier)

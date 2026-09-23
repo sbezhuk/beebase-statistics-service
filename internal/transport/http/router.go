@@ -45,6 +45,7 @@ func NewRouter(
 			r.Get("/harvest", statisticsHandler.Harvest)
 			r.Get("/needs-attention", statisticsHandler.NeedsAttention)
 		})
+		r.Get("/api/v1/hives/{hiveId}/health/history", statisticsHandler.HealthHistory)
 	})
 
 	return r

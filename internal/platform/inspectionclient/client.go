@@ -28,8 +28,9 @@ const (
 // token so inspection-service scopes the result to the same user this
 // service verified via their token.
 type Client struct {
-	baseURL string
-	http    *http.Client
+	baseURL       string
+	http          *http.Client
+	internalToken string
 }
 
 // New returns a Client that calls inspection-service at baseURL (e.g.

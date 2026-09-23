@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sbezhuk/beebase-health/health"
 
 	domainstats "github.com/sbezhuk/beebase-statistics-service/internal/domain/statistics"
 )
@@ -25,6 +26,62 @@ type HiveLister interface {
 	// ListAll returns every hive belonging to whoever presented
 	// accessToken.
 	ListAll(ctx context.Context, accessToken string) ([]domainstats.Hive, error)
+}
+
+// HiveVerifier confirms that the caller owns a hive through hive-service.
+type HiveVerifier interface {
+	Verify(ctx context.Context, accessToken string, hiveID uuid.UUID) error
+}
+
+// EntitlementResolver obtains the caller's authoritative subscription state.
+type EntitlementResolver interface {
+	GetEntitlement(ctx context.Context, accessToken string) (string, error)
+}
+
+const EntitlementPro = "pro"
+
+// HealthFact is the transport-independent subset of an inspection required
+// to reconstruct the canonical health.Inspection input.
+type HealthFact struct {
+	ID          uuid.UUID
+	HiveID      uuid.UUID
+	InspectedAt time.Time
+	Type        health.Type
+	Assessment  *HealthFactAssessment
+}
+
+// HealthFactAssessment preserves the complete canonical assessment shape,
+// including nil versus non-nil empty slices.
+type HealthFactAssessment struct {
+	Version                int
+	ColonyStrength         *health.ColonyStrength
+	QueenStatus            *health.QueenStatus
+	BroodStatus            *health.BroodStatus
+	FoodStores             *health.FoodStores
+	HealthConcerns         *health.HealthConcerns
+	QueenObserved          *health.QueenObserved
+	EggsObserved           *health.EggsObserved
+	QueenCells             *health.QueenCells
+	QueenCondition         *health.QueenCondition
+	BroodAmount            *health.BroodAmount
+	BroodPattern           *health.BroodPattern
+	BroodStages            *[]health.BroodStage
+	BroodConcerns          *health.BroodConcerns
+	HealthOverallCondition *health.HealthOverallCondition
+	PestSigns              *[]health.PestSign
+	HealthWarningSigns     *[]health.HealthWarningSign
+	HealthConcernLevel     *health.HealthConcernLevel
+	FeedingNeed            *health.FeedingNeed
+	FeedingPerformed       *health.FeedingPerformed
+	FeedTypes              *[]health.FeedType
+	Season                 *health.SeasonalPhase
+	SeasonalStoreReadiness *health.SeasonalStoreReadiness
+	SeasonalReadiness      *health.SeasonalReadiness
+	SeasonalConcerns       *[]health.SeasonalConcern
+}
+
+type HealthFactsReader interface {
+	ListHealthFacts(ctx context.Context, hiveID uuid.UUID, to time.Time) ([]HealthFact, error)
 }
 
 // InspectionLister is this service's dependency on inspection-service.

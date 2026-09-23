@@ -49,3 +49,36 @@ func TestParseLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHealthHistoryRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		query     string
+		wantError string
+		wantDays  int
+	}{
+		{name: "valid inclusive range", query: "from=2026-09-10&to=2026-09-12&interval=DAY", wantDays: 3},
+		{name: "missing from", query: "to=2026-09-12", wantError: CodeFromRequired},
+		{name: "invalid from", query: "from=2026-02-30&to=2026-09-12", wantError: CodeFromInvalid},
+		{name: "missing to", query: "from=2026-09-10", wantError: CodeToRequired},
+		{name: "invalid to", query: "from=2026-09-10&to=not-a-date", wantError: CodeToInvalid},
+		{name: "from after to", query: "from=2026-09-12&to=2026-09-10", wantError: CodeFromAfterTo},
+		{name: "unsupported interval", query: "from=2026-09-10&to=2026-09-12&interval=week", wantError: CodeIntervalUnsupported},
+		{name: "range too long", query: "from=2025-01-01&to=2026-01-01", wantError: CodeHistoryRangeTooLong},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/hives/ignored/health/history?"+tt.query, nil)
+			from, to, fields := parseHealthHistoryRange(r)
+			if tt.wantError != "" {
+				if fields["from"] != tt.wantError && fields["to"] != tt.wantError && fields["interval"] != tt.wantError {
+					t.Fatalf("fields = %#v, want %q", fields, tt.wantError)
+				}
+				return
+			}
+			if len(fields) != 0 || int(to.Sub(from).Hours()/24)+1 != tt.wantDays {
+				t.Fatalf("range/fields = %v/%#v, want %d/nil", to.Sub(from), fields, tt.wantDays)
+			}
+		})
+	}
+}
